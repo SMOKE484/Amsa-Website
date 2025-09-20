@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Alusani Maths and Science Academy</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="./styling/index.css" />
+    <link rel="stylesheet" href="./styling/mission.css" />
+  </head>
+  <body>
+   <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-logo">
+                <img src="./images/amsaLogo.png" alt="Alusani Academy Logo">
+            </div>
+            <div class="nav-menu" id="nav-menu">
+                <a href="index.html" class="nav-link">Home</a>
+                <a href="./pages/programs.html" class="nav-link">Programs</a>
+                <a href="./pages/about.html" class="nav-link">About</a>
+                <a href="./pages/gallery.html" class="nav-link active">Gallery</a>
+                <a href="#" class="nav-link">Success Stories</a>
+                <a href="#" class="nav-link">Contact</a>
+                <a href="#" class="nav-link btn-enroll">Enroll Now</a>
+            </div>
+            <div class="hamburger" id="hamburger">
+                <span class="bar"></span>
+                <span class="bar"></span>
+                <span class="bar"></span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Home Hero Section with Student Carousel -->
+    <section class="home-hero">
+      <div class="home-hero-carousel">
+        <div class="home-hero-slide active">
+          <div
+            class="home-hero-image"
+            style="background-image: url('./images/home2.jpg')"
+          ></div>
+          <div class="home-hero-overlay"></div>
+        </div>
+        <div class="home-hero-slide">
+          <div
+            class="home-hero-image"
+            style="background-image: url('./images/class2.jpg')"
+          ></div>
+          <div class="home-hero-overlay"></div>
+        </div>
+        <div class="home-hero-slide">
+          <div
+            class="home-hero-image"
+            style="background-image: url('./images/awards.jpg')"
+          ></div>
+          <div class="home-hero-overlay"></div>
+        </div>
+
+        <!-- Geometric elements container -->
+        <div class="home-hero-geometrics">
+          <div class="home-hero-geometric home-hero-geometric-1"></div>
+          <div class="home-hero-geometric home-hero-geometric-2"></div>
+          <div class="home-hero-geometric home-hero-geometric-3"></div>
+          <div class="home-hero-geometric home-hero-geometric-4"></div>
+          <div class="home-hero-geometric home-hero-geometric-5"></div>
+        </div>
+
+        <div class="home-hero-content">
+          <h1>
+            Empowering Future Leaders Through <span>Maths & Science</span>
+          </h1>
+          <p>
+            Join us at Alusani Academy and transform your fear into confidence,
+            struggle into success
+          </p>
+          <div class="home-hero-buttons">
+            <a href="programs.html" class="home-hero-btn home-hero-btn-primary"
+              >Explore Programs</a
+            >
+            <a href="#" class="home-hero-btn home-hero-btn-secondary"
+              >Student Portal</a
+            >
+          </div>
+        </div>
+
+        <div class="home-hero-controls">
+          <button class="home-hero-control-btn home-hero-prev-btn">
+            <i class="fas fa-chevron-left"></i>
+          </button>
+          <button class="home-hero-control-btn home-hero-next-btn">
+            <i class="fas fa-chevron-right"></i>
+          </button>
+        </div>
+
+        <div class="home-hero-indicators">
+          <span class="home-hero-indicator active" data-slide="0"></span>
+          <span class="home-hero-indicator" data-slide="1"></span>
+          <span class="home-hero-indicator" data-slide="2"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Mission Section -->
+    <section class="mission">
+      <div class="container">
+        <h2 class="section-title">Our Mission & Vision</h2>
+
+        <div class="mission-content">
+          <!-- Founder Card -->
+          <div class="founder-card">
+            <div class="founder-image">
+              <img
+                src="./images/zwokonda.jpg"
+                alt="Masase Hangwani - Founder"
+                loading="lazy"
+              />
+            </div>
+            <div class="founder-info">
+              <h3>Masase Hangwani</h3>
+              <p class="founder-title">Founder & Director</p>
+              <p class="founder-quote">
+                "Education is the most powerful weapon which you can use to
+                change the world."
+              </p>
+            </div>
+          </div>
+
+          <!-- Mission Vision Tabs -->
+          <div class="tabs-container">
+            <div class="tabs">
+              <button class="tab-btn active" data-tab="mission">
+                Our Mission
+              </button>
+              <button class="tab-btn" data-tab="vision">Our Vision</button>
+              <button class="tab-btn" data-tab="impact">Our Impact</button>
+            </div>
+
+            <div class="tab-content">
+              <div class="tab-pane active" id="mission">
+                <div class="icon-title">
+                  <i class="fas fa-bullseye"></i>
+                  <h3>Empowering Through Education</h3>
+                </div>
+                <p>
+                  At Alusani Maths and Science Academy, we are driven by a
+                  passion to empower students with the knowledge and skills they
+                  need to succeed in maths and science. We believe these
+                  subjects are crucial for the development of our country and
+                  our learners.
+                </p>
+                <p>
+                  Our mission is to transform learners from struggling and
+                  fearing maths and science to confidently passing these
+                  subjects, breaking free from the cycle of poverty and social
+                  limitations.
+                </p>
+                <div class="mission-stats">
+                  <div class="stat">
+                    <span class="stat-number" data-target="95">0</span>% 
+                    <span class="stat-label">Pass Rate</span>
+                  </div>
+                  <div class="stat">
+                    <span class="stat-number" data-target="500">0</span>+ 
+                    <span class="stat-label">Students Empowered</span>
+                  </div>
+                  <div class="stat">
+                    <span class="stat-number" data-target="5">0</span>+ 
+                    <span class="stat-label">Years of Excellence</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="tab-pane" id="vision">
+                <div class="icon-title">
+                  <i class="fas fa-eye"></i>
+                  <h3>Building a Brighter Future</h3>
+                </div>
+                <p>
+                  We envision a future where learners are not only academically
+                  proficient but also empowered to make a positive impact in
+                  their communities. Our vision is to build a winning team of
+                  learners who are brave, resilient, and determined to succeed.
+                </p>
+                <p>
+                  We believe that with the right guidance and support, every
+                  learner has the potential to excel and make a difference in
+                  the world.
+                </p>
+                <div class="vision-features">
+                  <div class="vision-feature">
+                    <i class="fas fa-graduation-cap"></i>
+                    <h4>Academic Excellence</h4>
+                    <p>
+                      Transforming fear into confidence and struggle into
+                      success
+                    </p>
+                  </div>
+                  <div class="vision-feature">
+                    <i class="fas fa-users"></i>
+                    <h4>Community Impact</h4>
+                    <p>
+                      Creating leaders who make positive changes in their
+                      communities
+                    </p>
+                  </div>
+                  <div class="vision-feature">
+                    <i class="fas fa-heart"></i>
+                    <h4>Nation Building</h4>
+                    <p>
+                      Contributing to the development of our country through
+                      education
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="tab-pane" id="impact">
+                <div class="icon-title">
+                  <i class="fas fa-chart-line"></i>
+                  <h3>Making a Difference</h3>
+                </div>
+                <p>
+                  Since our founding, Alusani Academy has made significant
+                  impact in our community:
+                </p>
+                <div class="impact-timeline">
+                  <div class="timeline-item">
+                    <div class="timeline-year">2018</div>
+                    <div class="timeline-content">
+                      <h4>Academy Founded</h4>
+                      <p>
+                        Masase Hangwani establishes Alusani Academy in Mashamba
+                        Village
+                      </p>
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div class="timeline-year">2019</div>
+                    <div class="timeline-content">
+                      <h4>First Graduating Class</h4>
+                      <p>
+                        92% pass rate for our first group of Grade 12 students
+                      </p>
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div class="timeline-year">2021</div>
+                    <div class="timeline-content">
+                      <h4>Community Expansion</h4>
+                      <p>
+                        Extended programs to serve 3 additional villages in the
+                        region
+                      </p>
+                    </div>
+                  </div>
+                  <div class="timeline-item">
+                    <div class="timeline-year">2023</div>
+                    <div class="timeline-content">
+                      <h4>Record Achievements</h4>
+                      <p>
+                        97% pass rate with 42 distinctions in Mathematics and
+                        Science
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Academy Values -->
+        <div class="values-section">
+          <h3>Our Core Values</h3>
+          <div class="values-container">
+            <div class="value-card">
+              <div class="value-icon">
+                <i class="fas fa-brain"></i>
+              </div>
+              <h4>Excellence</h4>
+              <p>Striving for the highest quality in everything we do</p>
+            </div>
+            <div class="value-card">
+              <div class="value-icon">
+                <i class="fas fa-hands-helping"></i>
+              </div>
+              <h4>Empowerment</h4>
+              <p>
+                Equipping students with tools for success beyond the classroom
+              </p>
+            </div>
+            <div class="value-card">
+              <div class="value-icon">
+                <i class="fas fa-heart"></i>
+              </div>
+              <h4>Community</h4>
+              <p>Building strong relationships that support student growth</p>
+            </div>
+            <div class="value-card">
+              <div class="value-icon">
+                <i class="fas fa-flag"></i>
+              </div>
+              <h4>Courage</h4>
+              <p>Encouraging bravery in facing academic challenges</p>
+            </div>
+          </div>
+        </div>
+
+        </div>
+      </div>
+    </section>
+
+  <!-- Testimonials Section -->
+<section class="testimonials">
+  <div class="container">
+    <div class="section-header">
+      <h2>Success Stories</h2>
+      <p>Hear from our students about their transformative experiences</p>
+    </div>
+    <div class="testimonial-cards">
+      <div class="testimonial-card">
+        <div class="testimonial-icon">
+          <i class="fas fa-quote-left"></i>
+        </div>
+        <div class="testimonial-content">
+          <p>
+            "Alusani Academy changed my perspective on maths. I went from
+            failing to distinction in just one term!"
+          </p>
+        </div>
+        <div class="testimonial-author">
+          <div class="author-image">
+            <img src="https://images.unsplash.com/photo-1544725176-7c40e5a71c5e?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&h=150&q=80" alt="Lerato M." loading="lazy">
+          </div>
+          <div class="author-info">
+            <h4>Lerato M.</h4>
+            <p>Grade 11 Student</p>
+            <div class="author-rating">
+              <i class="fas fa-star"></i>
+              <i class="fas fa-star"></i>
+              <i class="fas fa-star"></i>
+              <i class="fas fa-star"></i>
+              <i class="fas fa-star"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="testimonial-card">
+        <div class="testimonial-icon">
+          <i class="fas fa-quote-left"></i>
+        </div>
+        <div class="testimonial-content">
+          <p>
+            "The science program helped me understand complex concepts
+            through practical experiments. Now I want to be a scientist!"
+          </p>
+        </div>
+        <div class="testimonial-author">
+          <div class="author-image">
+            <img src="https://images.unsplash.com/photo-1531427186611-ecfd6d936c79?ixlib=rb-4.0.3&auto=format&fit=crop&w=150&h=150&q=80" alt="Thabo K." loading="lazy">
+          </div>
+          <div class="author-info">
+            <h4>Thabo K.</h4>
+            <p>Grade 10 Student</p>
+            <div class="author-rating">
+              <i class="fas fa-star"></i>
+              <i class="fas fa-star"></i>
+              <i class="fas fa-star"></i>
+              <i class="fas fa-star"></i>
+              <i class="fas fa-star-half-alt"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="testimonials-cta">
+      <p>Want to share your success story?</p>
+      <a href="#" class="btn-text">Tell us about your experience <i class="fas fa-arrow-right"></i></a>
+    </div>
+  </div>
+</section>
+
+
+<!-- Footer -->
+<footer>
+  <div class="container">
+    <div class="footer-content">
+      <div class="footer-main">
+        <div class="footer-brand">
+          <div class="footer-logo">
+            <img src="./images/amsaLogo.png" alt="Alusani Academy Logo" loading="lazy">
+          </div>
+          <p class="footer-description">
+            Empowering future leaders through excellence in mathematics and science education.
+          </p>
+          <div class="footer-contact">
+            <div class="contact-item">
+              <i class="fas fa-map-marker-alt"></i>
+              <span>Mashamba Village, South Africa</span>
+            </div>
+            <div class="contact-item">
+              <i class="fas fa-envelope"></i>
+              <span>info@alusaniacademy.edu.za</span>
+            </div>
+            <div class="contact-item">
+              <i class="fas fa-phone"></i>
+              <span>+27 12 345 6789</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer-links-grid">
+          <div class="footer-links">
+            <h4>Programs</h4>
+            <a href="#">Grade 8-9 Programs</a>
+            <a href="#">Grade 10-12 Programs</a>
+            <a href="#">Mathematics</a>
+            <a href="#">Science Programs</a>
+            <a href="#">Exam Preparation</a>
+          </div>
+          
+          <div class="footer-links">
+            <h4>Academy</h4>
+            <a href="#">About Us</a>
+            <a href="#">Our Mission</a>
+            <a href="#">Success Stories</a>
+            <a href="#">Our Team</a>
+            <a href="#">Careers</a>
+          </div>
+          
+          <div class="footer-links">
+            <h4>Support</h4>
+            <a href="#">Contact Us</a>
+            <a href="#">FAQs</a>
+            <a href="#">Resources</a>
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Service</a>
+          </div>
+        </div>
+
+        <div class="footer-newsletter">
+          <h4>Stay Updated</h4>
+          <p>Subscribe to our newsletter for updates and educational resources</p>
+          <form class="newsletter-form">
+            <input type="email" placeholder="Enter your email address" required>
+            <button type="submit">Subscribe</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="footer-social">
+        <h4>Connect With Us</h4>
+        <div class="social-icons">
+          <a href="#" class="social-link">
+            <i class="fab fa-facebook-f"></i>
+          </a>
+          <a href="#" class="social-link">
+            <i class="fab fa-twitter"></i>
+          </a>
+          <a href="#" class="social-link">
+            <i class="fab fa-instagram"></i>
+          </a>
+          <a href="#" class="social-link">
+            <i class="fab fa-linkedin-in"></i>
+          </a>
+          <a href="#" class="social-link">
+            <i class="fab fa-youtube"></i>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <div class="footer-bottom-content">
+        <p>&copy; 2023 Alusani Maths and Science Academy. All rights reserved.</p>
+        <div class="footer-credits">
+          <p>Developed and maintained by <strong>Nalokie Holdings</strong></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+    <script src="./scripts/script.js"></script>
+    <script src="./scripts/mission.js"></script>
+  </body>
+</html>
