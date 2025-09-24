@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alusani Academy - Student Portal</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="../styling/application.css">
+<link rel="stylesheet" href="../styling/index.css">
+<style>
+/* Toast Notifications */
+#toastContainer {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+}
+.toast {
+    background-color: #2e5c89;
+    color: #fff;
+    padding: 12px 20px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    animation: slideIn 0.5s, fadeOut 0.5s 3.5s forwards;
+}
+.toast.success { background-color: #44c0b6; }
+.toast.error { background-color: #e64a2e; }
+@keyframes slideIn { from {opacity:0; transform: translateX(100%);} to {opacity:1; transform: translateX(0);} }
+@keyframes fadeOut { to {opacity:0; transform: translateX(100%);} }
+.toast i { margin-right: 10px; }
+</style>
+</head>
+<body>
+
+   <header>
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <img src="../images/amsaLogo.png" alt="Alusani Academy Logo">
+                </div>
+                <div class="auth-section">
+                    <div class="user-info" id="userInfo" style="display: none;">
+                        <div class="user-avatar" id="userAvatar">JD</div>
+                        <span id="userName">John Doe</span>
+                    </div>
+                    <button class="btn btn-outline" id="loginBtn">
+                        <i class="fab fa-google"></i> Sign in with Google
+                    </button>
+                    <button class="btn btn-primary" id="logoutBtn" style="display: none;">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <h2>Student Application Portal</h2>
+            <p>Complete your application to join Alusani Maths and Science Academy. Please have your documents ready before starting the application process.</p>
+            <button class="btn btn-primary" id="startApplicationBtn" style="display: none;">
+                <i class="fas fa-pencil-alt"></i> Start Application
+            </button>
+        </div>
+    </section>
+
+    <section class="application-section" id="applicationSection" style="display: none;">
+        <div class="container">
+            <div class="form-container">
+                <h2 class="form-title">Student Application Form</h2>
+                <form id="applicationForm" novalidate>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="firstName">First Name *</label>
+                            <input type="text" id="firstName" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="lastName">Last Name *</label>
+                            <input type="text" id="lastName" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Student Email *</label>
+                            <input type="email" id="email" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="parentEmail">Parent/Guardian Email *</label>
+                            <input type="email" id="parentEmail" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="phone">Phone Number *</label>
+                            <input type="tel" id="phone" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="grade">Grade *</label>
+                            <select id="grade" class="form-control" required>
+                                <option value="">Select Grade</option>
+                                <option value="8">Grade 8</option>
+                                <option value="9">Grade 9</option>
+                                <option value="10">Grade 10</option>
+                                <option value="11">Grade 11</option>
+                                <option value="12">Grade 12</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="school">Current School *</label>
+                            <input type="text" id="school" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="gender">Gender *</label>
+                            <select id="gender" class="form-control" required>
+                                <option value="">Select Gender</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                                <option value="other">Other</option>
+                                <option value="prefer-not-to-say">Prefer not to say</option>
+                            </select>
+                        </div>
+                        <div class="form-group form-full">
+                            <label>Subjects *</label>
+                            <div class="subjects-grid" id="subjectsContainer"></div>
+                        </div>
+                        <div class="form-group form-full">
+                            <label>Parent/Guardian Contact Details *</label>
+                            <div class="emergency-contact-form">
+                                <div class="form-group">
+                                    <label for="parentName">Full Name *</label>
+                                    <input type="text" id="parentName" class="form-control" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="parentRelationship">Relationship to Student *</label>
+                                    <input type="text" id="parentRelationship" class="form-control" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="parentPhone">Phone Number *</label>
+                                    <input type="tel" id="parentPhone" class="form-control" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="alternateContact">Alternate Contact (Optional)</label>
+                                    <input type="text" id="alternateContact" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group form-full">
+                            <label>Report Card (PDF) *</label>
+                            <div class="file-upload" id="reportCardUpload">
+                                <i class="fas fa-file-pdf"></i>
+                                <p>Click to upload report card (PDF, max 5MB)</p>
+                                <input type="file" id="reportCard" accept=".pdf" hidden required>
+                            </div>
+                            <div id="reportCardName"></div>
+                        </div>
+                        <div class="form-group form-full">
+                            <label>ID Document (PDF or Image) *</label>
+                            <div class="file-upload" id="idDocumentUpload">
+                                <i class="fas fa-id-card"></i>
+                                <p>Click to upload ID document (PDF or image, max 5MB)</p>
+                                <input type="file" id="idDocument" accept=".pdf,.jpg,.jpeg,.png" hidden required>
+                            </div>
+                            <div id="idDocumentName"></div>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-primary submit-btn" id="nextToConsentBtn">
+                        <i class="fas fa-arrow-right"></i> Continue to Consent Forms
+                    </button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <section class="consent-section" id="consentSection" style="display: none;">
+        <div class="container">
+            <div class="form-container">
+                <h2 class="form-title">Parent/Guardian Consent Agreement</h2>
+                <form id="consentForm" novalidate>
+                    <div class="form-group form-full">
+                        <p>I, <input type="text" id="parentFullName" class="form-control inline-input" placeholder="Full names of parent or legal guardian" required>, 
+                        parent and/or legal guardian of the undermentioned, over whom I have custody and control, hereby consent to my child</p>
+                    </div>
+                    <div class="form-group form-full">
+                        <p><input type="text" id="learnerFullName" class="form-control inline-input" placeholder="Full names of learner" required> 
+                        (ID: <input type="text" id="learnerId" class="form-control inline-input" placeholder="Learner ID number" required>)</p>
+                    </div>
+                    <div class="form-group form-full">
+                        <p>participating or enrolled in the following programs (select all that apply):</p>
+                        <div class="programs-grid">
+                            <div class="program-checkbox">
+                                <input type="checkbox" id="program1" name="programs" value="Cross Night Session">
+                                <label for="program1">Cross Night Session</label>
+                            </div>
+                            <div class="program-checkbox">
+                                <input type="checkbox" id="program2" name="programs" value="AMSA Camp">
+                                <label for="program2">AMSA Camp</label>
+                            </div>
+                            <div class="program-checkbox">
+                                <input type="checkbox" id="program3" name="programs" value="Sports Day">
+                                <label for="program3">Sports Day</label>
+                            </div>
+                            <div class="program-checkbox">
+                                <input type="checkbox" id="program4" name="programs" value="Incentives Event">
+                                <label for="program4">Incentives Event</label>
+                            </div>
+                            <div class="program-checkbox">
+                                <input type="checkbox" id="program5" name="programs" value="AMSA Closing Function">
+                                <label for="program5">AMSA Closing Function</label>
+                            </div>
+                            <div class="program-checkbox">
+                                <input type="checkbox" id="program6" name="programs" value="One on One session" checked>
+                                <label for="program6">One on One session (Compulsory)</label>
+                            </div>
+                            <div class="program-checkbox">
+                                <input type="checkbox" id="program7" name="programs" value="Career Guidance">
+                                <label for="program7">Career Guidance</label>
+                            </div>
+                            <div class="program-checkbox">
+                                <input type="checkbox" id="program8" name="programs" value="AMSA Trip">
+                                <label for="program8">AMSA Trip (Grade 8 – 12)</label>
+                            </div>
+                            <div class="program-checkbox">
+                                <input type="checkbox" id="program9" name="programs" value="Cross day session" checked>
+                                <label for="program9">Cross day session (Compulsory)</label>
+                            </div>
+                            <div class="program-checkbox">
+                                <input type="checkbox" id="program10" name="programs" value="Online Lesson">
+                                <label for="program10">Online Lesson</label>
+                            </div>
+                            <div class="program-checkbox">
+                                <input type="checkbox" id="program11" name="programs" value="AMSA Maths Olympiads">
+                                <label for="program11">AMSA Maths Olympiads</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group form-full">
+                        <p>Arranged, organized, and offered by the <strong>ALUSANI MATHS AND SCIENCE ACADEMY</strong>, and where relevant to his/her being transported to and from the said activities by means of transport made available by the AMSA team or by using public transport.</p>
+                        <p>I further agree to the conditions that, while every precaution will be taken for the safety and welfare of my child and for the care of his/her possessions, I will hold blameless and indemnify all persons at <strong>ALUSANI MATHS AND SCIENCE ACADEMY</strong> and all other organizations associated, as per AMSA 2025 Terms and Conditions (Page 1).</p>
+                    </div>
+                    <div class="form-group form-full">
+                        <div class="signature-field">
+                            <label for="parentSignature">Parent/Guardian Signature *</label>
+                            <canvas id="signaturePad" width="500" height="150"></canvas>
+                            <button type="button" id="clearSignature" class="btn btn-secondary">Clear Signature</button>
+                            <input type="hidden" id="parentSignature" required>
+                        </div>
+                    </div>
+                    <div class="form-group form-full">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="parentConsentDate">Date *</label>
+                                <input type="date" id="parentConsentDate" class="form-control" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group form-full">
+                        <div class="consent-checkbox">
+                            <input type="checkbox" id="parentConsent" required>
+                            <label for="parentConsent">I acknowledge that I have read and agree to the terms above *</label>
+                        </div>
+                        <div class="error-message" id="parentConsentError"></div>
+                    </div>
+                    <div class="form-navigation">
+                        <button type="button" class="btn btn-secondary" id="backToApplicationBtn">
+                            <i class="fas fa-arrow-left"></i> Back to Application
+                        </button>
+                        <button type="button" class="btn btn-primary" id="nextToRulesBtn">
+                            <i class="fas fa-arrow-right"></i> Continue to Rules
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <section class="rules-section" id="rulesSection" style="display: none;">
+        <div class="container">
+            <div class="form-container">
+                <h2 class="form-title">Academy Rules and Code of Conduct</h2>
+                <div class="rules-content">
+                    <div class="rules-section">
+                        <h3>Strictly Prohibited</h3>
+                        <ul>
+                            <li>Romantic relationships of any kind are strictly prohibited.</li>
+                            <li>Drugs, alcohol, and weapons are prohibited; if found, South African Police Services shall be called.</li>
+                            <li>Sexual abuse or harassment shall not be tolerated; South African Police Services shall be involved in such cases.</li>
+                            <li>Bunking any class is prohibited.</li>
+                            <li>Cyberbullying is prohibited.</li>
+                        </ul>
+                    </div>
+                    <div class="rules-section">
+                        <h3>Expectations</h3>
+                        <ul>
+                            <li>Learners are expected to always behave themselves.</li>
+                            <li>Learners must attend using their own transportation or AMSA-provided transport.</li>
+                            <li>Appropriate clothing is advised; be mindful of fellow learners.</li>
+                            <li>Learners on chronic medication must bring their medication and inform AMSA staff of their medical requirements.</li>
+                        </ul>
+                    </div>
+                    <div class="rules-section">
+                        <h3>Conduct That May Lead to Suspension/Exclusion</h3>
+                        <ul>
+                            <li>Conduct that violates the right or safety of others.</li>
+                            <li>Criminal behavior of any kind.</li>
+                            <li>Defacing or destroying academy property.</li>
+                            <li>Sexual harassment or sexual assault.</li>
+                            <li>Engaging in harmful graffiti, racism, or hate speech.</li>
+                            <li>Repeated infringements of the school rules or code of conduct.</li>
+                            <li>Possession of dangerous weapons (e.g., guns, knives, or other objects that may threaten lives).</li>
+                            <li>Bullying others.</li>
+                            <li>Lying about attendance (e.g., claiming to attend while absent).</li>
+                        </ul>
+                    </div>
+                    <div class="rules-section">
+                        <h3>Assessment & Rewards</h3>
+                        <p>Two tests shall be written for each grade (8-12) every quarter. The best learner from each grade will be rewarded, and the overall top performer will receive a trophy, certificate, or other incentives at year-end. Results will be communicated to parents via WhatsApp, SMS, or phone call for those without WhatsApp.</p>
+                    </div>
+                    <div class="form-group form-full">
+                        <div class="consent-checkbox">
+                            <input type="checkbox" id="rulesAgreement" required>
+                            <label for="rulesAgreement">I acknowledge that I have read and understand the academy rules and code of conduct *</label>
+                        </div>
+                        <div class="error-message" id="rulesAgreementError"></div>
+                    </div>
+                    <div class="form-navigation">
+                        <button type="button" class="btn btn-secondary" id="backToConsentBtn">
+                            <i class="fas fa-arrow-left"></i> Back to Consent Form
+                        </button>
+                        <button type="button" class="btn btn-primary" id="nextToPledgeBtn">
+                            <i class="fas fa-arrow-right"></i> Continue to Pledge
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="pledge-section" id="pledgeSection" style="display: none;">
+        <div class="container">
+            <div class="form-container">
+                <h2 class="form-title">Learner's Pledge and Agreement</h2>
+                <form id="pledgeForm" novalidate>
+                    <div class="form-group form-full">
+                        <h3>Learner's Pledge</h3>
+                        <p>I acknowledge that I have a responsibility to do my part for my academic growth and development and will therefore:</p>
+                        <ul class="pledge-list">
+                            <li>Attend academy regularly and punctually.</li>
+                            <li>Allow other learners the right and opportunity to learn.</li>
+                            <li>Refrain from any behavior that might disrupt or interfere with a class or learning.</li>
+                            <li>Use every opportunity provided to learn from my tutors, fellow learners, and my homework.</li>
+                            <li>Behave, act, and dress in a way that brings credit to myself and the institution.</li>
+                            <li>Complete my homework and assignments punctually, neatly, and to the best of my ability.</li>
+                            <li>Immediately report all incidents of social misconduct to my tutors.</li>
+                            <li>Refrain from leaving the classroom during contact time, unless deemed valid by the educator.</li>
+                            <li>Do my best each day to improve my work by learning from my mistakes.</li>
+                            <li>Not litter and preserve academy property for the use and benefit of all present and future learners.</li>
+                            <li>Compensate the academy or other persons for the loss of or damage to any property due to my negligence.</li>
+                            <li>Be loyal to the academy and display loyalty in my behavior and speech.</li>
+                            <li>Be an active member of the academy through participation.</li>
+                            <li>Show respect to all people's rights.</li>
+                        </ul>
+                    </div>
+                    <div class="form-group form-full">
+                        <p>I acknowledge that I have read the contents of this code of conduct, and I agree to be bound by the contents of the code of conduct, drug and alcohol policy, academy disciplinary policy, and all other academy policies and rules.</p>
+                    </div>
+                    <div class="form-group form-full">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="learnerFullNamePledge">Learner's Full Name *</label>
+                                <input type="text" id="learnerFullNamePledge" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="learnerSignatureDate">Date *</label>
+                                <input type="date" id="learnerSignatureDate" class="form-control" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group form-full">
+                        <div class="signature-field">
+                            <label for="learnerSignature">Learner's Signature *</label>
+                            <canvas id="learnerSignaturePad" width="500" height="150"></canvas>
+                            <button type="button" id="clearLearnerSignature" class="btn btn-secondary">Clear Signature</button>
+                            <input type="hidden" id="learnerSignature" required>
+                        </div>
+                    </div>
+                    <div class="form-group form-full">
+                        <h3>Parent/Guardian Agreement</h3>
+                        <p>I, the parent/guardian of the above learner, acknowledge that I have read the code of conduct, drug and alcohol policy, learner disciplinary policy, and learner's pledge and agree to explain the content and do what reasonably could be expected of me to assist in ensuring that my child adheres to the academy's policies. I agree that, should my child commit any of the above transgressions, the academy will have the right to follow the disciplinary procedures, and I agree that my child and I will comply with the imposed sanctions.</p>
+                    </div>
+                    <div class="form-group form-full">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="parentFullNamePledge">Parent/Guardian Full Name *</label>
+                                <input type="text" id="parentFullNamePledge" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="parentSignatureDatePledge">Date *</label>
+                                <input type="date" id="parentSignatureDatePledge" class="form-control" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group form-full">
+                        <div class="signature-field">
+                            <label for="parentSignaturePledge">Parent/Guardian's Signature *</label>
+                            <canvas id="parentSignaturePadPledge" width="500" height="150"></canvas>
+                            <button type="button" id="clearParentSignaturePledge" class="btn btn-secondary">Clear Signature</button>
+                            <input type="hidden" id="parentSignaturePledge" required>
+                        </div>
+                    </div>
+                    <div class="form-group form-full">
+                        <div class="consent-checkbox">
+                            <input type="checkbox" id="finalAgreement" required>
+                            <label for="finalAgreement">I confirm that all information provided is accurate and I agree to all terms and conditions *</label>
+                        </div>
+                        <div class="error-message" id="finalAgreementError"></div>
+                    </div>
+                    <div class="form-navigation">
+                        <button type="button" class="btn btn-secondary" id="backToRulesBtn">
+                            <i class="fas fa-arrow-left"></i> Back to Rules
+                        </button>
+                        <button type="submit" class="btn btn-primary submit-btn">
+                            <i class="fas fa-paper-plane"></i> Submit Application
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <section class="application-status" id="applicationStatus" style="display: none;">
+        <div class="container">
+            <div class="status-card">
+                <div class="status-icon"><i class="fas fa-check"></i></div>
+                <h3>Application Submitted Successfully!</h3>
+                <p>Thank you for applying. We will review your application and contact you within 5-7 business days.</p>
+                <p><strong>Current Status:</strong> <span id="currentAppStatus">submitted</span></p>
+                <p><strong>Submitted on:</strong> <span id="submittedDate">-</span></p>
+            </div>
+        </div>
+    </section>
+
+    <section class="existing-application" id="existingApplication" style="display: none;">
+        <div class="container">
+            <div class="existing-app-card">
+                <div class="existing-app-icon"><i class="fas fa-exclamation"></i></div>
+                <h3>Existing Application Found</h3>
+                <p>You already have a pending application. We are currently reviewing it and will contact you soon.</p>
+                <p>If you believe this is an error, please contact our support team.</p>
+                <button class="btn btn-secondary" id="contactSupportBtn">
+                    <i class="fas fa-headset"></i> Contact Support
+                </button>
+            </div>
+        </div>
+    </section>
+
+        <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-main">
+                    <div class="footer-brand">
+                        <div class="footer-logo">
+                            <img src="../images/amsaLogo.png" alt="Alusani Academy Logo">
+                        </div>
+                        <p class="footer-description">
+                            Empowering future leaders through excellence in mathematics and science education.
+                        </p>
+                        <div class="footer-contact">
+                            <div class="contact-item">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <span>Mashamba Village, South Africa</span>
+                            </div>
+                            <div class="contact-item">
+                                <i class="fas fa-envelope"></i>
+                                <span>info@alusaniacademy.edu.za</span>
+                            </div>
+                            <div class="contact-item">
+                                <i class="fas fa-phone"></i>
+                                <span>+27 12 345 6789</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="footer-links-grid">
+                        <div class="footer-links">
+                            <h4>Programs</h4>
+                            <a href="#">Grade 8-9 Programs</a>
+                            <a href="#">Grade 10-12 Programs</a>
+                            <a href="#">Mathematics</a>
+                            <a href="#">Science Programs</a>
+                            <a href="#">Exam Preparation</a>
+                        </div>
+                        
+                        <div class="footer-links">
+                            <h4>Academy</h4>
+                            <a href="#">About Us</a>
+                            <a href="#">Our Mission</a>
+                            <a href="#">Success Stories</a>
+                            <a href="#">Our Team</a>
+                            <a href="#">Careers</a>
+                        </div>
+                        
+                        <div class="footer-links">
+                            <h4>Support</h4>
+                            <a href="#">Contact Us</a>
+                            <a href="#">FAQs</a>
+                            <a href="#">Resources</a>
+                            <a href="#">Privacy Policy</a>
+                            <a href="#">Terms of Service</a>
+                        </div>
+                    </div>
+
+                    <div class="footer-newsletter">
+                        <h4>Stay Updated</h4>
+                        <p>Subscribe to our newsletter for updates and educational resources</p>
+                        <form class="newsletter-form">
+                            <input type="email" placeholder="Enter your email address" required>
+                            <button type="submit">Subscribe</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="footer-social">
+                    <h4>Connect With Us</h4>
+                    <div class="social-icons">
+                        <a href="#" class="social-link">
+                            <i class="fab fa-facebook-f"></i>
+                        </a>
+                        <a href="#" class="social-link">
+                            <i class="fab fa-twitter"></i>
+                        </a>
+                        <a href="#" class="social-link">
+                            <i class="fab fa-instagram"></i>
+                        </a>
+                        <a href="#" class="social-link">
+                            <i class="fab fa-linkedin-in"></i>
+                        </a>
+                        <a href="#" class="social-link">
+                            <i class="fab fa-youtube"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <div class="footer-bottom-content">
+                    <p>&copy; 2023 Alusani Maths and Science Academy. All rights reserved.</p>
+                    <div class="footer-credits">
+                        <p>Developed and maintained by <strong>Nalokie Holdings</strong></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <div id="toastContainer"></div>
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+<!-- Firebase SDKs -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyBqXXAo4PCH_fv4_dciua9J-fUQeOzxi7w",
+    authDomain: "amsa-website-3b9d5.firebaseapp.com",
+    projectId: "amsa-website-3b9d5",
+    storageBucket: "amsa-website-3b9d5.firebasestorage.app",
+    messagingSenderId: "843868533888",
+    appId: "1:843868533888:web:a681f7c4bca393a535a265",
+    measurementId: "G-ZTTW4YT0J9"
+};
+
+const app = initializeApp(firebaseConfig);
+getAnalytics(app);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
+
+// Store Firebase modules globally
+window.firebaseApp = app;
+window.firebaseAuth = auth;
+window.firebaseDb = db;
+window.firebaseStorage = storage;
+window.firebaseSignInWithPopup = signInWithPopup;
+window.firebaseGoogleAuthProvider = GoogleAuthProvider;
+window.firebaseSignOut = signOut;
+window.firebaseOnAuthStateChanged = onAuthStateChanged;
+window.firebaseCollection = collection;
+window.firebaseAddDoc = addDoc;
+window.firebaseServerTimestamp = serverTimestamp;
+window.firebaseRef = ref;
+window.firebaseUploadBytes = uploadBytes;
+window.firebaseGetDownloadURL = getDownloadURL;
+window.firebaseQuery = query;
+window.firebaseWhere = where;
+window.firebaseGetDocs = getDocs;
+window.firebaseDoc = doc;
+window.firebaseSetDoc = setDoc;
+window.firebaseGetDoc = getDoc;
+
+// Toast helper
+window.showToast = (message, type='success') => {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `<i class="fas ${type==='success'?'fa-check':'fa-exclamation'}"></i>${message}`;
+    document.getElementById('toastContainer').appendChild(toast);
+    setTimeout(()=> toast.remove(), 4000);
+};
+</script>
+<script src="../scripts/application.js" type="module"></script>
+</body>
+</html>

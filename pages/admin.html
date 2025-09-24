@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alusani Academy - Admin Portal</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../styling/admin.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+    <div class="admin-container">
+        <!-- Login Section -->
+        <section class="login-section" id="loginSection">
+            <div class="login-container">
+                <div class="login-header">
+                    <img src="../images/amsaLogo.png" alt="Alusani Academy Logo">
+                    <h2>Admin Portal</h2>
+                    <p>Sign in with your admin account to manage applications</p>
+                </div>
+                <button class="btn btn-primary google-signin-btn" id="googleSignInBtn">
+                    <i class="fab fa-google"></i> Sign in with Google
+                </button>
+                <div class="login-footer">
+                    <p>Only authorized administrators can access this portal</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Admin Dashboard -->
+        <section class="dashboard-section" id="dashboardSection" style="display:none;">
+            <header class="admin-header">
+                <div class="header-content">
+                    <div class="logo">
+                        <img src="../images/amsaLogo.png" alt="Alusani Academy Logo">
+                        <span>Admin Portal</span>
+                    </div>
+                    <div class="header-actions">
+                        <div class="admin-info">
+                            <div class="admin-avatar" id="adminAvatar">A</div>
+                            <span id="adminName">Admin User</span>
+                        </div>
+                        <button class="btn btn-outline" id="logoutBtn">
+                            <i class="fas fa-sign-out-alt"></i> Logout
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <div class="dashboard-content">
+                <div class="sidebar">
+                    <div class="sidebar-menu">
+                        <a href="#" class="menu-item active" data-section="dashboard">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </a>
+                        <a href="#" class="menu-item" data-section="applications">
+                            <i class="fas fa-file-alt"></i> Applications
+                        </a>
+                        <a href="#" class="menu-item" data-section="analytics">
+                            <i class="fas fa-chart-bar"></i> Analytics
+                        </a>
+                    </div>
+                </div>
+
+                <div class="main-content">
+                    <!-- Dashboard Overview -->
+                    <section class="content-section active" id="dashboardSection">
+                        <h2>Application Overview</h2>
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-icon">
+                                    <i class="fas fa-file-alt"></i>
+                                </div>
+                                <div class="stat-info">
+                                    <h3 id="totalApplications">0</h3>
+                                    <p>Total Applications</p>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon pending">
+                                    <i class="fas fa-clock"></i>
+                                </div>
+                                <div class="stat-info">
+                                    <h3 id="pendingApplications">0</h3>
+                                    <p>Pending Review</p>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon approved">
+                                    <i class="fas fa-check-circle"></i>
+                                </div>
+                                <div class="stat-info">
+                                    <h3 id="approvedApplications">0</h3>
+                                    <p>Approved</p>
+                                </div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-icon rejected">
+                                    <i class="fas fa-times-circle"></i>
+                                </div>
+                                <div class="stat-info">
+                                    <h3 id="rejectedApplications">0</h3>
+                                    <p>Rejected</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="recent-applications">
+                            <h3>Recent Applications</h3>
+                            <div class="applications-list" id="recentApplicationsList">
+                                <!-- Will be populated by JavaScript -->
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Applications Management -->
+                    <section class="content-section" id="applicationsSection">
+                        <div class="section-header">
+                            <h2>Application Management</h2>
+                            <div class="filters">
+                                <select id="statusFilter">
+                                    <option value="all">All Statuses</option>
+                                    <option value="submitted">Submitted</option>
+                                    <option value="under-review">Under Review</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="rejected">Rejected</option>
+                                </select>
+                                <select id="gradeFilter">
+                                    <option value="all">All Grades</option>
+                                    <option value="8">Grade 8</option>
+                                    <option value="9">Grade 9</option>
+                                    <option value="10">Grade 10</option>
+                                    <option value="11">Grade 11</option>
+                                    <option value="12">Grade 12</option>
+                                </select>
+                                <input type="text" id="searchInput" placeholder="Search applications...">
+                            </div>
+                        </div>
+
+                        <div class="applications-table-container">
+                            <table class="applications-table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Grade</th>
+                                        <th>School</th>
+                                        <th>Subjects</th>
+                                        <th>Status</th>
+                                        <th>Submitted</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="applicationsTableBody">
+                                    <!-- Will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="pagination">
+                            <button class="btn btn-outline" id="prevPageBtn">
+                                <i class="fas fa-chevron-left"></i> Previous
+                            </button>
+                            <span id="pageInfo">Page 1 of 1</span>
+                            <button class="btn btn-outline" id="nextPageBtn">
+                                Next <i class="fas fa-chevron-right"></i>
+                            </button>
+                        </div>
+                    </section>
+
+                    <!-- Application Detail View -->
+                    <section class="content-section" id="applicationDetailSection">
+                        <div class="detail-header">
+                            <button class="btn btn-outline" id="backToListBtn">
+                                <i class="fas fa-arrow-left"></i> Back to List
+                            </button>
+                            <h2>Application Details</h2>
+                            <div class="application-actions">
+                                <button class="btn btn-outline" id="downloadApplicationBtn">
+                                    <i class="fas fa-download"></i> Download PDF
+                                </button>
+                                <select id="statusChangeSelect">
+                                    <option value="submitted">Submitted</option>
+                                    <option value="under-review">Under Review</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="rejected">Rejected</option>
+                                </select>
+                                <button class="btn btn-primary" id="saveStatusBtn">Save Status</button>
+                            </div>
+                        </div>
+
+                        <div class="application-detail-content">
+                            <div class="detail-card">
+                                <h3>Personal Information</h3>
+                                <div class="detail-grid">
+                                    <div class="detail-item">
+                                        <label>Full Name</label>
+                                        <p id="detailName">-</p>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Email</label>
+                                        <p id="detailEmail">-</p>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Phone</label>
+                                        <p id="detailPhone">-</p>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Grade</label>
+                                        <p id="detailGrade">-</p>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>School</label>
+                                        <p id="detailSchool">-</p>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Gender</label>
+                                        <p id="detailGender">-</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="detail-card">
+                                <h3>Subjects</h3>
+                                <div id="detailSubjects" class="subjects-list">
+                                    <!-- Will be populated by JavaScript -->
+                                </div>
+                            </div>
+
+                            <div class="detail-card">
+                                <h3>Parent/Guardian Information</h3>
+                                <div class="detail-grid">
+                                    <div class="detail-item">
+                                        <label>Name</label>
+                                        <p id="detailParentName">-</p>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Relationship</label>
+                                        <p id="detailParentRelationship">-</p>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Phone</label>
+                                        <p id="detailParentPhone">-</p>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Email</label>
+                                        <p id="detailParentEmail">-</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="detail-card">
+                                <h3>Documents</h3>
+                                <div class="documents-grid">
+                                    <div class="document-item">
+                                        <i class="fas fa-file-pdf"></i>
+                                        <div class="document-info">
+                                            <p>Report Card</p>
+                                            <a href="#" id="reportCardLink" target="_blank" style="display: none;">View Document</a>
+                                        </div>
+                                    </div>
+                                    <div class="document-item">
+                                        <i class="fas fa-id-card"></i>
+                                        <div class="document-info">
+                                            <p>ID Document</p>
+                                            <a href="#" id="idDocumentLink" target="_blank" style="display: none;">View Document</a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="detail-card">
+                                <h3>Application Status History</h3>
+                                <div id="statusHistory" class="status-history">
+                                    <!-- Will be populated by JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Analytics Section -->
+                    <section class="content-section" id="analyticsSection">
+                        <h2>Application Analytics</h2>
+                        <div class="analytics-grid">
+                            <div class="analytics-card">
+                                <h3>Applications by Grade</h3>
+                                <div id="gradeChart" class="chart-container">
+                                    <!-- Chart will be rendered here -->
+                                </div>
+                            </div>
+                            <div class="analytics-card">
+                                <h3>Applications by Status</h3>
+                                <div id="statusChart" class="chart-container">
+                                    <!-- Chart will be rendered here -->
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        import { 
+            getFirestore, 
+            collection, 
+            getDocs, 
+            getDoc, 
+            doc, 
+            updateDoc, 
+            query, 
+            where, 
+            orderBy,
+            serverTimestamp,
+            arrayUnion
+        } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBqXXAo4PCH_fv4_dciua9J-fUQeOzxi7w",
+            authDomain: "amsa-website-3b9d5.firebaseapp.com",
+            projectId: "amsa-website-3b9d5",
+            storageBucket: "amsa-website-3b9d5.firebasestorage.app",
+            messagingSenderId: "843868533888",
+            appId: "1:843868533888:web:a681f7c4bca393a535a265",
+            measurementId: "G-ZTTW4YT0J9"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        window.firebase = { 
+            auth, 
+            db, 
+            signInWithPopup, 
+            GoogleAuthProvider, 
+            signOut, 
+            onAuthStateChanged, 
+            collection, 
+            getDocs, 
+            getDoc, 
+            doc, 
+            updateDoc, 
+            query, 
+            where, 
+            orderBy,
+            serverTimestamp,
+            arrayUnion
+        };
+    </script>
+    <script src="../scripts/admin.js"></script>
+</body>
+</html>
