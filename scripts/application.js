@@ -115,13 +115,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function validateId(id) {
-    return /^[a-zA-Z0-9-]{5,20}$/.test(id); // Adjust for specific ID format if needed
+    return /^[a-zA-Z0-9-]{5,20}$/.test(id);
   }
 
   function validateDate(date) {
     const selectedDate = new Date(date);
     const today = new Date();
-    today.setHours(23, 59, 59, 999); // Allow same-day signatures
+    today.setHours(23, 59, 59, 999);
     return selectedDate <= today && !isNaN(selectedDate.getTime());
   }
 
@@ -219,6 +219,262 @@ document.addEventListener('DOMContentLoaded', () => {
       console.error('Firebase initialization check failed:', err);
       showToast('Application error: Firebase services are unavailable. Please try again later.', 'error');
       return false;
+    }
+  }
+
+  // Yoco Payment Integration
+  async function initiateYocoPayment(applicationData) {
+    try {
+      showPaymentLoading(true);
+      
+      // Validate application data
+      if (!applicationData.id || !applicationData.email) {
+        throw new Error('Invalid application data');
+      }
+
+      // Check if Yoco SDK is loaded
+      if (typeof window.YocoSDK === 'undefined') {
+        console.error('Yoco SDK not loaded');
+        throw new Error('Payment system is not available. Please refresh the page and try again.');
+      }
+
+      // Get card details from form
+      const cardNumber = document.getElementById('cardNumber').value.replace(/\s/g, '');
+      const cardExpiry = document.getElementById('cardExpiry').value.split('/');
+      const cardCvc = document.getElementById('cardCvc').value;
+      const cardName = document.getElementById('cardName').value;
+
+      // Validate card details
+      if (!cardNumber || !cardExpiry[0] || !cardExpiry[1] || !cardCvc || !cardName) {
+        throw new Error('Please fill in all card details');
+      }
+
+      // Validate card number length
+      if (cardNumber.length < 13 || cardNumber.length > 19) {
+        throw new Error('Invalid card number length');
+      }
+
+      // Validate expiry
+      const expiryMonth = cardExpiry[0].trim();
+      const expiryYear = cardExpiry[1].trim();
+      
+      if (parseInt(expiryMonth) < 1 || parseInt(expiryMonth) > 12) {
+        throw new Error('Invalid expiry month');
+      }
+
+      console.log('Initializing Yoco SDK...');
+
+      // Initialize Yoco SDK with inline popup
+      const yoco = new window.YocoSDK({
+        publicKey: 'pk_test_ed3c54a6gOol69qa7f45'
+      });
+
+      console.log('Creating Yoco token with card details...');
+
+      // Create payment token using the inline method
+      const result = await new Promise((resolve, reject) => {
+        yoco.showPopup({
+          amountInCents: 15000,
+          currency: 'ZAR',
+          name: 'Alusani Academy',
+          description: 'Application Fee',
+          callback: function(result) {
+            if (result.error) {
+              reject(new Error(result.error.message));
+            } else {
+              resolve(result);
+            }
+          }
+        });
+      });
+
+      console.log('Yoco token created:', result);
+
+      // Process charge (simulate server-side processing)
+      const chargeResult = await processYocoCharge({
+        token: result.id,
+        amountInCents: 15000, // R150.00 in cents
+        currency: 'ZAR',
+        description: 'Alusani Academy Application Fee',
+        applicationId: applicationData.id,
+        customerEmail: applicationData.email
+      });
+
+      if (chargeResult.success) {
+        // Update application status in Firebase
+        await updateApplicationPaymentStatus(applicationData.id, 'paid');
+        showToast('Payment successful! Your application has been submitted.', 'success');
+        
+        // Complete the application submission
+        await completeApplicationSubmission(applicationData);
+        
+        return true;
+      } else {
+        throw new Error(chargeResult.error || 'Payment failed');
+      }
+
+    } catch (error) {
+      console.error('Yoco payment error:', error);
+      
+      // User-friendly error messages
+      let errorMessage = 'Payment failed. Please try again.';
+      if (error.message?.includes('card_declined')) {
+        errorMessage = 'Card was declined. Please use a different card.';
+      } else if (error.message?.includes('insufficient_funds')) {
+        errorMessage = 'Insufficient funds. Please use a different card.';
+      } else if (error.message?.includes('invalid_card')) {
+        errorMessage = 'Invalid card details. Please check and try again.';
+      } else if (error.message?.includes('token')) {
+        errorMessage = 'Payment processing error. Please try again.';
+      } else if (error.message?.includes('not available')) {
+        errorMessage = error.message;
+      }
+      
+      showToast(errorMessage, 'error');
+      return false;
+    } finally {
+      showPaymentLoading(false);
+    }
+  }
+
+  // Simulate server-side charge processing
+  async function processYocoCharge(chargeData) {
+    console.log('Processing Yoco charge:', chargeData);
+    
+    // Simulate API call delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // For testing, always return success
+    // In production, this would call your backend API
+    return {
+      success: true,
+      chargeId: 'ch_' + Math.random().toString(36).substr(2, 9),
+      amount: chargeData.amountInCents,
+      currency: chargeData.currency,
+      description: chargeData.description
+    };
+  }
+
+  // Update application payment status
+  async function updateApplicationPaymentStatus(applicationId, status) {
+    const appRef = window.firebaseDoc(window.firebaseDb, 'applications', applicationId);
+    await window.firebaseSetDoc(appRef, {
+      paymentStatus: status,
+      status: 'submitted',
+      submittedAt: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : new Date(),
+      updatedAt: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : new Date()
+    }, { merge: true });
+  }
+
+  // Show Yoco payment modal
+  function showYocoPaymentModal(applicationData) {
+    return new Promise((resolve) => {
+      // Check if Yoco SDK is loaded
+      if (typeof window.YocoSDK === 'undefined') {
+        showToast('Payment system is not available. Please ensure you have an internet connection and refresh the page.', 'error');
+        resolve(false);
+        return;
+      }
+
+      const modal = document.getElementById('yocoPaymentModal');
+      const confirmBtn = document.getElementById('confirmYocoPayment');
+      const cancelBtn = document.getElementById('cancelYocoPayment');
+      const closeBtn = modal.querySelector('.close');
+
+      // Hide custom card form fields (Yoco will use its own popup)
+      const cardForm = modal.querySelector('.card-form');
+      if (cardForm) {
+        cardForm.style.display = 'none';
+      }
+
+      // Show info message
+      const infoDiv = modal.querySelector('.payment-info') || document.createElement('div');
+      infoDiv.className = 'payment-info';
+      infoDiv.innerHTML = `
+        <p style="margin: 20px 0; padding: 15px; background: #f0f9ff; border-radius: 8px; color: #1e40af;">
+          <strong>Application Fee: R150.00</strong><br>
+          Click "Proceed to Payment" to complete your payment securely via Yoco.
+        </p>
+      `;
+      if (!modal.querySelector('.payment-info')) {
+        modal.querySelector('.modal-content').insertBefore(infoDiv, confirmBtn.parentElement);
+      }
+
+      modal.style.display = 'flex';
+
+      const cleanup = () => {
+        modal.style.display = 'none';
+        confirmBtn.onclick = null;
+        cancelBtn.onclick = null;
+        closeBtn.onclick = null;
+      };
+
+      confirmBtn.textContent = 'Proceed to Payment';
+      
+      confirmBtn.onclick = async () => {
+        cleanup();
+        
+        try {
+          const paymentSuccess = await initiateYocoPayment(applicationData);
+          resolve(paymentSuccess);
+        } catch (error) {
+          console.error('Payment error:', error);
+          resolve(false);
+        }
+      };
+
+      cancelBtn.onclick = () => {
+        cleanup();
+        resolve(false);
+      };
+
+      closeBtn.onclick = () => {
+        cleanup();
+        resolve(false);
+      };
+
+      modal.onclick = (e) => {
+        if (e.target === modal) {
+          cleanup();
+          resolve(false);
+        }
+      };
+    });
+  }
+
+  // Card input formatting functions
+  function formatCardNumber(input) {
+    let value = input.value.replace(/\s/g, '').replace(/\D/g, '');
+    let formattedValue = '';
+    
+    for (let i = 0; i < value.length; i++) {
+      if (i > 0 && i % 4 === 0) {
+        formattedValue += ' ';
+      }
+      formattedValue += value[i];
+    }
+    
+    input.value = formattedValue.trim();
+  }
+
+  function formatExpiryDate(input) {
+    let value = input.value.replace(/\D/g, '');
+    if (value.length >= 2) {
+      input.value = value.substring(0, 2) + '/' + value.substring(2, 4);
+    } else {
+      input.value = value;
+    }
+  }
+
+  // Payment modal function (compatibility)
+  function showPaymentModal(formData) {
+    return showYocoPaymentModal(formData);
+  }
+
+  function showPaymentLoading(show) {
+    const loading = document.getElementById('paymentLoading');
+    if (loading) {
+      loading.style.display = show ? 'flex' : 'none';
     }
   }
 
@@ -352,179 +608,155 @@ document.addEventListener('DOMContentLoaded', () => {
 
   elements.backToRulesBtn.addEventListener('click', () => showSection('rules'));
 
+  // Save application as draft
+  async function saveApplicationAsDraft(formData) {
+    const user = window.firebaseAuth.currentUser;
+    const appRef = window.firebaseDoc(window.firebaseDb, 'applications', user.uid);
+
+    const draftData = {
+      userId: user.uid,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      grade: formData.grade,
+      school: formData.school,
+      subjects: formData.selectedSubjects,
+      status: 'payment_pending',
+      paymentStatus: 'pending',
+      amount: 150.00,
+      formData: formData,
+      createdAt: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : new Date(),
+      updatedAt: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : new Date()
+    };
+
+    delete draftData.formData.reportCardFile;
+    delete draftData.formData.idDocumentFile;
+    delete draftData.formData.parentSignature;
+    delete draftData.formData.learnerSignature;
+    delete draftData.formData.parentSignaturePledge;
+
+    await window.firebaseSetDoc(appRef, draftData, { merge: true });
+    console.log('Application saved as draft pending payment');
+  }
+
+  // Complete application submission after payment
+  async function completeApplicationSubmission(formData) {
+    const user = window.firebaseAuth.currentUser;
+    const appRef = window.firebaseDoc(window.firebaseDb, 'applications', user.uid);
+
+    try {
+      spinner.style.display = 'block';
+
+      const reportCardUrl = await uploadFile(formData.reportCardFile, 'reportCard');
+      const idDocumentUrl = await uploadFile(formData.idDocumentFile, 'idDocument');
+
+      const applicationData = {
+        ...formData,
+        reportCardUrl,
+        idDocumentUrl,
+        status: 'submitted',
+        submittedAt: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : new Date(),
+        paymentStatus: 'paid'
+      };
+
+      await window.firebaseSetDoc(appRef, applicationData);
+      showSection('status');
+      showToast('Application submitted successfully!', 'success');
+
+    } catch (error) {
+      console.error('Error completing application:', error);
+      showToast('Error submitting application. Please try again.', 'error');
+    } finally {
+      spinner.style.display = 'none';
+      isSubmitting = false;
+    }
+  }
+
+  async function uploadFile(file, fileType) {
+    const user = window.firebaseAuth.currentUser;
+    const fileRef = window.firebaseRef(window.firebaseStorage, `applications/${user.uid}/${fileType}_${Date.now()}.${file.name.split('.').pop()}`);
+
+    await window.firebaseUploadBytes(fileRef, file);
+    return await window.firebaseGetDownloadURL(fileRef);
+  }
+
   // Submit Application
   async function submitApplication(e) {
     e.preventDefault();
     if (isSubmitting) return;
     isSubmitting = true;
 
-    elements.finalAgreementError.style.display = 'none';
-    if (!checkFirebaseInitialized()) {
-      isSubmitting = false;
-      return;
-    }
-
-    const user = window.firebaseAuth.currentUser;
-    if (!user) {
-      showToast('You must sign in first', 'error');
-      isSubmitting = false;
-      return;
-    }
-
-    const formData = {
-      firstName: sanitizeInput(elements.firstName.value.trim()),
-      lastName: sanitizeInput(elements.lastName.value.trim()),
-      email: elements.emailInput.value.trim(),
-      parentEmail: elements.parentEmailInput.value.trim(),
-      phone: elements.phoneInput.value.trim(),
-      grade: elements.gradeSelect.value,
-      school: sanitizeInput(elements.school.value.trim()),
-      gender: elements.gender.value,
-      parentName: sanitizeInput(elements.parentName.value.trim()),
-      parentRelationship: sanitizeInput(elements.parentRelationship.value.trim()),
-      parentPhone: elements.parentPhoneInput.value.trim(),
-      alternateContact: sanitizeInput(elements.alternateContact.value.trim()),
-      selectedSubjects: Array.from(document.querySelectorAll('input[name="subjects"]:checked')).map(cb => cb.value),
-      reportCardFile: elements.reportCard.files[0],
-      idDocumentFile: elements.idDocument.files[0],
-      parentFullName: sanitizeInput(elements.parentFullName.value.trim()),
-      learnerFullName: sanitizeInput(elements.learnerFullName.value.trim()),
-      learnerId: sanitizeInput(elements.learnerId.value.trim()),
-      selectedPrograms: Array.from(document.querySelectorAll('input[name="programs"]:checked')).map(cb => cb.value),
-      parentConsentDate: elements.parentConsentDate.value,
-      parentConsent: elements.consentCheckbox.checked,
-      parentSignature: signaturePads.parent.toDataURL(),
-      rulesAgreement: elements.rulesAgreement.checked,
-      learnerFullNamePledge: sanitizeInput(elements.learnerFullNamePledge.value.trim()),
-      learnerSignatureDate: elements.learnerSignatureDate.value,
-      learnerSignature: signaturePads.learner.toDataURL(),
-      parentFullNamePledge: sanitizeInput(elements.parentFullNamePledge.value.trim()),
-      parentSignatureDatePledge: elements.parentSignatureDatePledge.value,
-      parentSignaturePledge: signaturePads.parentPledge.toDataURL(),
-      finalAgreement: elements.finalAgreement.checked
-    };
-
-    const errors = [
-      validateApplicationForm(formData),
-      validateConsentForm(formData),
-      validateRulesForm(formData),
-      validatePledgeForm(formData)
-    ].filter(Boolean);
-
-    if (errors.length > 0) {
-      showToast(errors.join(' '), 'error');
-      elements.pledgeForm.reportValidity();
-      isSubmitting = false;
-      return;
-    }
-
     try {
-      spinner.style.display = 'block';
-      spinner.setAttribute('aria-busy', 'true');
-      const appRef = window.firebaseDoc(window.firebaseDb, 'applications', user.uid);
+      const formData = {
+        firstName: sanitizeInput(elements.firstName.value.trim()),
+        lastName: sanitizeInput(elements.lastName.value.trim()),
+        email: elements.emailInput.value.trim(),
+        parentEmail: elements.parentEmailInput.value.trim(),
+        phone: elements.phoneInput.value.trim(),
+        grade: elements.gradeSelect.value,
+        school: sanitizeInput(elements.school.value.trim()),
+        gender: elements.gender.value,
+        parentName: sanitizeInput(elements.parentName.value.trim()),
+        parentRelationship: sanitizeInput(elements.parentRelationship.value.trim()),
+        parentPhone: elements.parentPhoneInput.value.trim(),
+        alternateContact: sanitizeInput(elements.alternateContact.value.trim()),
+        selectedSubjects: Array.from(document.querySelectorAll('input[name="subjects"]:checked')).map(cb => cb.value),
+        reportCardFile: elements.reportCard.files[0],
+        idDocumentFile: elements.idDocument.files[0],
+        parentFullName: sanitizeInput(elements.parentFullName.value.trim()),
+        learnerFullName: sanitizeInput(elements.learnerFullName.value.trim()),
+        learnerId: sanitizeInput(elements.learnerId.value.trim()),
+        selectedPrograms: Array.from(document.querySelectorAll('input[name="programs"]:checked')).map(cb => cb.value),
+        parentConsentDate: elements.parentConsentDate.value,
+        parentConsent: elements.consentCheckbox.checked,
+        parentSignature: signaturePads.parent.toDataURL(),
+        rulesAgreement: elements.rulesAgreement.checked,
+        learnerFullNamePledge: sanitizeInput(elements.learnerFullNamePledge.value.trim()),
+        learnerSignatureDate: elements.learnerSignatureDate.value,
+        learnerSignature: signaturePads.learner.toDataURL(),
+        parentFullNamePledge: sanitizeInput(elements.parentFullNamePledge.value.trim()),
+        parentSignatureDatePledge: elements.parentSignatureDatePledge.value,
+        parentSignaturePledge: signaturePads.parentPledge.toDataURL(),
+        finalAgreement: elements.finalAgreement.checked,
+        id: window.firebaseAuth.currentUser.uid
+      };
 
-      const existingDoc = await window.firebaseGetDoc(appRef);
-      if (existingDoc.exists()) {
-        showSection('existing');
-        spinner.style.display = 'none';
-        spinner.setAttribute('aria-busy', 'false');
+      const errors = [
+        validateApplicationForm(formData),
+        validateConsentForm(formData),
+        validateRulesForm(formData),
+        validatePledgeForm(formData)
+      ].filter(Boolean);
+
+      if (errors.length > 0) {
+        showToast(errors.join(' '), 'error');
         isSubmitting = false;
         return;
       }
 
-      const reportRef = window.firebaseRef(window.firebaseStorage, `applications/${user.uid}/reportCard.pdf`);
-      const idRef = window.firebaseRef(
-        window.firebaseStorage,
-        `applications/${user.uid}/idDocument.${formData.idDocumentFile.name.split('.').pop()}`
-      );
+      const appRef = window.firebaseDoc(window.firebaseDb, 'applications', formData.id);
+      const existingDoc = await window.firebaseGetDoc(appRef);
 
-      await Promise.all([
-        window.firebaseUploadBytes(reportRef, formData.reportCardFile).catch(err => {
-          console.error('Report card upload error:', err.code, err.message);
-          throw new Error(err.code === 'storage/unauthorized'
-            ? 'You do not have permission to upload files.'
-            : `Report card upload failed: ${err.message}`);
-        }),
-        window.firebaseUploadBytes(idRef, formData.idDocumentFile).catch(err => {
-          console.error('ID document upload error:', err.code, err.message);
-          throw new Error(err.code === 'storage/unauthorized'
-            ? 'You do not have permission to upload files.'
-            : `ID document upload failed: ${err.message}`);
-        })
-      ]);
+      if (existingDoc.exists() && existingDoc.data().paymentStatus === 'paid') {
+        await completeApplicationSubmission(formData);
+        return;
+      }
 
-      const reportCardUrl = await window.firebaseGetDownloadURL(reportRef);
-      const idDocumentUrl = await window.firebaseGetDownloadURL(idRef);
+      await saveApplicationAsDraft(formData);
 
-      await window.firebaseSetDoc(appRef, {
-        userId: user.uid,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        email: formData.email,
-        parentEmail: formData.parentEmail,
-        phone: formData.phone,
-        grade: parseInt(formData.grade),
-        school: formData.school,
-        gender: formData.gender,
-        subjects: formData.selectedSubjects,
-        emergencyContact: {
-          name: formData.parentName,
-          relation: formData.parentRelationship,
-          phone: formData.parentPhone,
-          alternate: formData.alternateContact
-        },
-        reportCardUrl,
-        idDocumentUrl,
-        consentAgreement: {
-          parentName: formData.parentFullName,
-          learnerName: formData.learnerFullName,
-          learnerId: formData.learnerId,
-          programs: formData.selectedPrograms,
-          transport: 'AMSA or public',
-          parentSignature: formData.parentSignature,
-          parentConsentDate: formData.parentConsentDate
-        },
-        rulesAcknowledgment: {
-          rulesAgreed: formData.rulesAgreement
-        },
-        pledgeAgreement: {
-          learnerName: formData.learnerFullNamePledge,
-          learnerSignature: formData.learnerSignature,
-          learnerSignatureDate: formData.learnerSignatureDate,
-          parentName: formData.parentFullNamePledge,
-          parentSignature: formData.parentSignaturePledge,
-          parentSignatureDate: formData.parentSignatureDatePledge,
-          finalAgreement: formData.finalAgreement
-        },
-        status: 'submitted',
-        submittedAt: window.firebaseServerTimestamp()
-      });
+      const proceedToPayment = await showPaymentModal(formData);
 
-      elements.startApplicationBtn.style.display = 'none'; // Explicitly hide after submission
-      showSection('status');
-      if (elements.currentAppStatus) elements.currentAppStatus.textContent = 'submitted';
-      if (elements.submittedDate) elements.submittedDate.textContent = new Date().toLocaleDateString('en-US', dateFormat);
+      if (proceedToPayment) {
+        // Payment is handled within the Yoco modal
+        // Application submission continues automatically on success
+      } else {
+        showToast('Please complete payment to submit your application.', 'info');
+      }
 
-      elements.applicationForm.reset();
-      elements.consentForm.reset();
-      elements.pledgeForm.reset();
-      elements.reportCardName.textContent = '';
-      elements.idDocumentName.textContent = '';
-      elements.reportCard.type = '';
-      elements.reportCard.type = 'file';
-      elements.idDocument.type = '';
-      elements.idDocument.type = 'file';
-      signaturePads.parent.clear();
-      signaturePads.learner.clear();
-      signaturePads.parentPledge.clear();
-      updateSubjects(elements.gradeSelect.value || '8');
-
-    } catch (err) {
-      console.error('Submission error:', err);
-      showToast(`Error submitting: ${err.message}`, 'error');
+    } catch (error) {
+      console.error('Submission error:', error);
+      showToast('Error processing application. Please try again.', 'error');
     } finally {
-      spinner.style.display = 'none';
-      spinner.setAttribute('aria-busy', 'false');
       isSubmitting = false;
     }
   }
@@ -572,7 +804,6 @@ document.addEventListener('DOMContentLoaded', () => {
     showToast('Please contact support at info@alusaniacademy.edu.za', 'info');
   });
 
-  // Accessibility
   [elements.reportCardUpload, elements.idDocumentUpload].forEach(uploadArea => {
     uploadArea.setAttribute('tabindex', '0');
     uploadArea.setAttribute('role', 'button');
@@ -586,7 +817,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   elements.gradeSelect.addEventListener('change', (e) => updateSubjects(e.target.value));
 
-  // Drag-and-drop support
   [elements.reportCardUpload, elements.idDocumentUpload].forEach(uploadArea => {
     uploadArea.addEventListener('dragover', (e) => {
       e.preventDefault();
@@ -612,7 +842,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 300));
   });
 
-  // Auth observer
+  // Card input formatting event listeners
+  document.addEventListener('input', function(e) {
+    if (e.target.id === 'cardNumber') {
+      formatCardNumber(e.target);
+    } else if (e.target.id === 'cardExpiry') {
+      formatExpiryDate(e.target);
+    } else if (e.target.id === 'cardCvc') {
+      // Only allow numbers for CVC
+      e.target.value = e.target.value.replace(/\D/g, '');
+    }
+  });
+
   if (checkFirebaseInitialized()) {
     window.firebaseOnAuthStateChanged(window.firebaseAuth, async (user) => {
       try {
@@ -631,11 +872,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const docSnap = await window.firebaseGetDoc(appRef);
             if (docSnap.exists()) {
               const data = docSnap.data();
-              elements.startApplicationBtn.style.display = 'none'; // Hide button if application exists
-              showSection('status');
-              if (elements.currentAppStatus) elements.currentAppStatus.textContent = data.status || 'submitted';
-              if (elements.submittedDate && data.submittedAt?.toDate) {
-                elements.submittedDate.textContent = data.submittedAt.toDate().toLocaleDateString('en-US', dateFormat);
+              elements.startApplicationBtn.style.display = 'none';
+              if (data.paymentStatus === 'paid' && data.status === 'submitted') {
+                showSection('status');
+                if (elements.currentAppStatus) elements.currentAppStatus.textContent = data.status || 'submitted';
+                if (elements.submittedDate && data.submittedAt?.toDate) {
+                  elements.submittedDate.textContent = data.submittedAt.toDate().toLocaleDateString('en-US', dateFormat);
+                }
+              } else {
+                showSection('application');
+                elements.startApplicationBtn.style.display = 'inline-flex';
               }
             } else {
               elements.startApplicationBtn.style.display = 'inline-flex';
@@ -661,12 +907,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Set current year in footer
   if (elements.currentYear) {
     elements.currentYear.textContent = new Date().getFullYear();
   }
 
-  // Cleanup event listeners
   const cleanup = () => {
     if (elements.loginBtn) elements.loginBtn.removeEventListener('click', signInWithGoogle);
     elements.logoutBtn.removeEventListener('click', doLogout);
@@ -696,6 +940,5 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   window.addEventListener('unload', cleanup);
 
-  // Initialize subjects
   updateSubjects(elements.gradeSelect.value || '8');
 });

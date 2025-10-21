@@ -7,6 +7,20 @@ document.addEventListener('DOMContentLoaded', () => {
         APPROVED: 'approved',
         REJECTED: 'rejected'
     };
+
+    const PAYMENT_STATUS = {
+        PENDING: 'pending',
+        APPLICATION_PAID: 'application_paid',
+        FULLY_PAID: 'fully_paid'
+    };
+
+    const FEE_STRUCTURE = {
+        1: { upfront: 1100, sixMonths: 1300, tenMonths: 1500 },
+        2: { upfront: 2100, sixMonths: 2300, tenMonths: 2500 },
+        3: { upfront: 3100, sixMonths: 3300, tenMonths: 3500 },
+        4: { upfront: 4100, sixMonths: 4300, tenMonths: 4500 }
+    };
+
     const APPLICATIONS_PER_PAGE = 10;
     const CACHE_TTL = 3600000; // 1 hour in ms
 
@@ -21,9 +35,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const contentSections = document.querySelectorAll('.content-section');
     const backToListBtn = document.getElementById('backToListBtn');
     const applicationsTableBody = document.getElementById('applicationsTableBody');
+    const paymentsTableBody = document.getElementById('paymentsTableBody');
     const statusFilter = document.getElementById('statusFilter');
     const gradeFilter = document.getElementById('gradeFilter');
+    const paymentFilter = document.getElementById('paymentFilter');
+    const paymentStatusFilter = document.getElementById('paymentStatusFilter');
+    const paymentPlanFilter = document.getElementById('paymentPlanFilter');
     const searchInput = document.getElementById('searchInput');
+    const paymentSearchInput = document.getElementById('paymentSearchInput');
     const saveStatusBtn = document.getElementById('saveStatusBtn');
     const statusChangeSelect = document.getElementById('statusChangeSelect');
     const downloadApplicationBtn = document.getElementById('downloadApplicationBtn');
@@ -42,9 +61,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // Sorting
     let sortColumn = null;
     let sortDirection = 'asc';
-    
-    // Debounce for search
-    let searchTimeout;
 
     // Event Listeners
     googleSignInBtn.addEventListener('click', handleGoogleSignIn);
@@ -63,24 +79,26 @@ document.addEventListener('DOMContentLoaded', () => {
     
     statusFilter.addEventListener('change', filterApplications);
     gradeFilter.addEventListener('change', filterApplications);
+    paymentFilter.addEventListener('change', filterApplications);
+    paymentStatusFilter.addEventListener('change', renderPayments);
+    paymentPlanFilter.addEventListener('change', renderPayments);
     searchInput.addEventListener('input', () => {
         clearTimeout(searchTimeout);
         searchTimeout = setTimeout(filterApplications, 300);
+    });
+    paymentSearchInput.addEventListener('input', () => {
+        clearTimeout(paymentSearchTimeout);
+        paymentSearchTimeout = setTimeout(renderPayments, 300);
     });
     saveStatusBtn.addEventListener('click', updateApplicationStatus);
     downloadApplicationBtn.addEventListener('click', downloadApplicationPDF);
     prevPageBtn.addEventListener('click', goToPrevPage);
     nextPageBtn.addEventListener('click', goToNextPage);
     
-    // Add sorting listeners
-    document.querySelectorAll('.applications-table th').forEach((header, index) => {
-        if (index < 6) { // Exclude actions column
-            header.classList.add('sortable');
-            header.dataset.column = ['name', 'grade', 'school', 'subjects', 'status', 'submitted'][index];
-            header.addEventListener('click', sortTable);
-        }
-    });
-    
+    // Debounce for search
+    let searchTimeout;
+    let paymentSearchTimeout;
+
     // Initialize
     checkAuthState();
     
@@ -165,6 +183,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (sectionId === 'analytics') {
             loadAnalytics();
+        } else if (sectionId === 'payments') {
+            renderPayments();
         }
     }
     
@@ -239,8 +259,8 @@ document.addEventListener('DOMContentLoaded', () => {
             app.status === STATUS.SUBMITTED || !app.status).length || 0;
         document.getElementById('approvedApplications').textContent = applications.filter(app => 
             app.status === STATUS.APPROVED).length || 0;
-        document.getElementById('rejectedApplications').textContent = applications.filter(app => 
-            app.status === STATUS.REJECTED).length || 0;
+        document.getElementById('paidApplications').textContent = applications.filter(app => 
+            app.paymentStatus === PAYMENT_STATUS.FULLY_PAID).length || 0;
         
         const recentApps = applications.slice(0, 5);
         const recentList = document.getElementById('recentApplicationsList');
@@ -290,7 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (pageApplications.length === 0) {
             const tr = document.createElement('tr');
             const td = document.createElement('td');
-            td.colSpan = 7;
+            td.colSpan = 8;
             td.className = 'no-data';
             td.textContent = 'No applications found. Try resetting the filters.';
             tr.appendChild(td);
@@ -314,7 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
             row.appendChild(tdSchool);
             
             const tdSubjects = document.createElement('td');
-            tdSubjects.textContent = app.subjects ? app.subjects.slice(0, 2).join(', ') + (app.subjects.length > 2 ? '...' : '') : 'N/A';
+            tdSubjects.textContent = app.selectedSubjects ? app.selectedSubjects.slice(0, 2).join(', ') + (app.selectedSubjects.length > 2 ? '...' : '') : 'N/A';
             row.appendChild(tdSubjects);
             
             const tdStatus = document.createElement('td');
@@ -323,6 +343,13 @@ document.addEventListener('DOMContentLoaded', () => {
             spanStatus.textContent = app.status || STATUS.SUBMITTED;
             tdStatus.appendChild(spanStatus);
             row.appendChild(tdStatus);
+            
+            const tdPaymentStatus = document.createElement('td');
+            const spanPaymentStatus = document.createElement('span');
+            spanPaymentStatus.className = `status-badge payment-status-${app.paymentStatus || PAYMENT_STATUS.PENDING}`;
+            spanPaymentStatus.textContent = app.paymentStatus || PAYMENT_STATUS.PENDING;
+            tdPaymentStatus.appendChild(spanPaymentStatus);
+            row.appendChild(tdPaymentStatus);
             
             const tdSubmitted = document.createElement('td');
             tdSubmitted.textContent = formatDate(app.submittedAt);
@@ -350,22 +377,181 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
     }
+
+    function renderPayments() {
+        const paymentStatusValue = paymentStatusFilter.value || 'all';
+        const paymentPlanValue = paymentPlanFilter.value || 'all';
+        const searchValue = (paymentSearchInput.value || '').toLowerCase().trim();
+        
+        const paymentApplications = applications.filter(app => {
+            let statusMatch = paymentStatusValue === 'all' || (app.paymentStatus || PAYMENT_STATUS.PENDING) === paymentStatusValue;
+            let planMatch = paymentPlanValue === 'all' || app.paymentPlan === paymentPlanValue;
+            let searchMatch = searchValue === '' || 
+                `${app.firstName} ${app.lastName}`.toLowerCase().includes(searchValue) ||
+                app.school.toLowerCase().includes(searchValue);
+            
+            return statusMatch && planMatch && searchMatch;
+        });
+        
+        paymentsTableBody.innerHTML = '';
+        
+        if (paymentApplications.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 9;
+            td.className = 'no-data';
+            td.textContent = 'No payment records found. Try resetting the filters.';
+            tr.appendChild(td);
+            paymentsTableBody.appendChild(tr);
+            return;
+        }
+        
+        let totalExpected = 0;
+        let totalReceived = 0;
+        let totalOutstanding = 0;
+        
+        paymentApplications.forEach(app => {
+            const subjectCount = app.selectedSubjects ? app.selectedSubjects.length : 0;
+            const paymentPlan = app.paymentPlan || 'upfront';
+            const totalAmount = calculateTotalAmount(subjectCount, paymentPlan);
+            const amountPaid = calculateAmountPaid(app, totalAmount);
+            const balance = totalAmount - amountPaid;
+            
+            totalExpected += totalAmount;
+            totalReceived += amountPaid;
+            totalOutstanding += balance;
+            
+            const row = document.createElement('tr');
+            
+            const tdName = document.createElement('td');
+            tdName.textContent = `${app.firstName} ${app.lastName}`;
+            row.appendChild(tdName);
+            
+            const tdGrade = document.createElement('td');
+            tdGrade.textContent = `Grade ${app.grade}`;
+            row.appendChild(tdGrade);
+            
+            const tdPlan = document.createElement('td');
+            tdPlan.textContent = formatPaymentPlan(paymentPlan);
+            row.appendChild(tdPlan);
+            
+            const tdPaymentStatus = document.createElement('td');
+            const spanPaymentStatus = document.createElement('span');
+            spanPaymentStatus.className = `status-badge payment-status-${app.paymentStatus || PAYMENT_STATUS.PENDING}`;
+            spanPaymentStatus.textContent = app.paymentStatus || PAYMENT_STATUS.PENDING;
+            tdPaymentStatus.appendChild(spanPaymentStatus);
+            row.appendChild(tdPaymentStatus);
+            
+            const tdTotalAmount = document.createElement('td');
+            tdTotalAmount.textContent = `R${totalAmount.toFixed(2)}`;
+            row.appendChild(tdTotalAmount);
+            
+            const tdAmountPaid = document.createElement('td');
+            tdAmountPaid.textContent = `R${amountPaid.toFixed(2)}`;
+            row.appendChild(tdAmountPaid);
+            
+            const tdBalance = document.createElement('td');
+            tdBalance.textContent = `R${balance.toFixed(2)}`;
+            tdBalance.style.color = balance > 0 ? 'var(--danger)' : 'var(--success)';
+            row.appendChild(tdBalance);
+            
+            const tdLastPayment = document.createElement('td');
+            tdLastPayment.textContent = getLastPaymentDate(app);
+            row.appendChild(tdLastPayment);
+            
+            const tdActions = document.createElement('td');
+            const button = document.createElement('button');
+            button.className = 'btn btn-outline view-app-btn';
+            button.dataset.id = app.id;
+            const i = document.createElement('i');
+            i.className = 'fas fa-eye';
+            button.appendChild(i);
+            button.appendChild(document.createTextNode(' View'));
+            tdActions.appendChild(button);
+            row.appendChild(tdActions);
+            
+            paymentsTableBody.appendChild(row);
+        });
+        
+        // Update payment summary
+        document.getElementById('totalExpectedRevenue').textContent = `R${totalExpected.toFixed(2)}`;
+        document.getElementById('totalReceived').textContent = `R${totalReceived.toFixed(2)}`;
+        document.getElementById('totalOutstanding').textContent = `R${totalOutstanding.toFixed(2)}`;
+        
+        document.querySelectorAll('#paymentsTableBody .view-app-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const appId = btn.getAttribute('data-id');
+                viewApplication(appId);
+            });
+        });
+    }
+    
+    function calculateTotalAmount(subjectCount, paymentPlan) {
+        if (subjectCount === 0) return 0;
+        const count = Math.min(Math.max(subjectCount, 1), 4);
+        return FEE_STRUCTURE[count][paymentPlan] || 0;
+    }
+    
+    function calculateAmountPaid(app, totalAmount) {
+        if (app.paymentStatus === PAYMENT_STATUS.FULLY_PAID) {
+            return totalAmount;
+        } else if (app.paymentStatus === PAYMENT_STATUS.APPLICATION_PAID) {
+            return 200; // Application fee
+        }
+        
+        // Calculate based on monthly payments
+        let amountPaid = 0;
+        if (app.payments) {
+            Object.values(app.payments).forEach(payment => {
+                if (payment.paid) {
+                    amountPaid += payment.amount || 0;
+                }
+            });
+        }
+        
+        return amountPaid;
+    }
+    
+    function formatPaymentPlan(plan) {
+        const planNames = {
+            'upfront': 'Upfront Payment',
+            'sixMonths': '6 Months Installment',
+            'tenMonths': '10 Months Installment'
+        };
+        return planNames[plan] || plan;
+    }
+    
+    function getLastPaymentDate(app) {
+        if (!app.payments) return 'N/A';
+        
+        const paidPayments = Object.values(app.payments).filter(p => p.paid && p.paidAt);
+        if (paidPayments.length === 0) return 'N/A';
+        
+        const lastPayment = paidPayments.reduce((latest, payment) => {
+            const paymentDate = new Date(payment.paidAt);
+            return paymentDate > latest ? paymentDate : latest;
+        }, new Date(0));
+        
+        return formatDate(lastPayment);
+    }
     
     function filterApplications() {
         const statusValue = statusFilter.value || 'all';
         const gradeValue = gradeFilter.value || 'all';
+        const paymentValue = paymentFilter.value || 'all';
         const searchValue = (searchInput.value || '').toLowerCase().trim();
         
         filteredApplications = applications.filter(app => {
             let statusMatch = statusValue === 'all' || (app.status || STATUS.SUBMITTED) === statusValue;
             let gradeMatch = gradeValue === 'all' || app.grade.toString() === gradeValue;
+            let paymentMatch = paymentValue === 'all' || (app.paymentStatus || PAYMENT_STATUS.PENDING) === paymentValue;
             let searchMatch = searchValue === '' || 
                 `${app.firstName} ${app.lastName}`.toLowerCase().includes(searchValue) ||
                 app.school.toLowerCase().includes(searchValue) ||
-                (app.subjects && app.subjects.join(',').toLowerCase().includes(searchValue)) ||
+                (app.selectedSubjects && app.selectedSubjects.join(',').toLowerCase().includes(searchValue)) ||
                 (app.status || STATUS.SUBMITTED).toLowerCase().includes(searchValue);
             
-            return statusMatch && gradeMatch && searchMatch;
+            return statusMatch && gradeMatch && paymentMatch && searchMatch;
         });
         
         currentPage = 1;
@@ -399,53 +585,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
-    function sortTable(e) {
-        const column = e.target.dataset.column;
-        if (!column) return;
-        
-        if (sortColumn === column) {
-            sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
-        } else {
-            sortColumn = column;
-            sortDirection = 'asc';
-        }
-        
-        filteredApplications.sort((a, b) => {
-            let valA = getSortValue(a, column);
-            let valB = getSortValue(b, column);
-            
-            let comparison = 0;
-            if (typeof valA === 'number' || valA instanceof Date) {
-                comparison = valA - valB;
-            } else {
-                comparison = valA.toString().localeCompare(valB.toString());
-            }
-            
-            return sortDirection === 'asc' ? comparison : -comparison;
-        });
-        
-        renderApplications();
-    }
-    
-    function getSortValue(app, column) {
-        switch (column) {
-            case 'name':
-                return `${app.firstName} ${app.lastName}`;
-            case 'grade':
-                return parseInt(app.grade, 10);
-            case 'school':
-                return app.school || '';
-            case 'subjects':
-                return app.subjects ? app.subjects.join(', ') : '';
-            case 'status':
-                return app.status || STATUS.SUBMITTED;
-            case 'submitted':
-                return app.submittedAt;
-            default:
-                return '';
-        }
-    }
-    
     function viewApplication(appId) {
         console.log(`Loading application details for ID: ${appId}`);
         currentApplication = applications.find(app => app.id === appId);
@@ -459,7 +598,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const requiredIds = [
             'detailName', 'detailEmail', 'detailPhone', 'detailGrade', 'detailSchool', 'detailGender',
             'detailSubjects', 'detailParentName', 'detailParentRelationship', 'detailParentPhone',
-            'detailParentEmail', 'reportCardLink', 'idDocumentLink', 'statusChangeSelect', 'statusHistory'
+            'detailParentEmail', 'reportCardLink', 'idDocumentLink', 'statusChangeSelect', 'statusHistory',
+            'detailPaymentStatus', 'detailPaymentPlan', 'detailTotalAmount', 'detailAmountPaid', 'detailBalance',
+            'paymentHistory'
         ];
         for (const id of requiredIds) {
             if (!document.getElementById(id)) {
@@ -476,10 +617,24 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('detailSchool').textContent = currentApplication.school || 'N/A';
         document.getElementById('detailGender').textContent = currentApplication.gender || 'N/A';
         
+        // Payment Information
+        const subjectCount = currentApplication.selectedSubjects ? currentApplication.selectedSubjects.length : 0;
+        const paymentPlan = currentApplication.paymentPlan || 'upfront';
+        const totalAmount = calculateTotalAmount(subjectCount, paymentPlan);
+        const amountPaid = calculateAmountPaid(currentApplication, totalAmount);
+        const balance = totalAmount - amountPaid;
+        
+        document.getElementById('detailPaymentStatus').textContent = currentApplication.paymentStatus || PAYMENT_STATUS.PENDING;
+        document.getElementById('detailPaymentPlan').textContent = formatPaymentPlan(paymentPlan);
+        document.getElementById('detailTotalAmount').textContent = `R${totalAmount.toFixed(2)}`;
+        document.getElementById('detailAmountPaid').textContent = `R${amountPaid.toFixed(2)}`;
+        document.getElementById('detailBalance').textContent = `R${balance.toFixed(2)}`;
+        document.getElementById('detailBalance').style.color = balance > 0 ? 'var(--danger)' : 'var(--success)';
+        
         const subjectsContainer = document.getElementById('detailSubjects');
         subjectsContainer.innerHTML = '';
-        if (currentApplication.subjects && currentApplication.subjects.length > 0) {
-            currentApplication.subjects.forEach(subject => {
+        if (currentApplication.selectedSubjects && currentApplication.selectedSubjects.length > 0) {
+            currentApplication.selectedSubjects.forEach(subject => {
                 const subjectTag = document.createElement('span');
                 subjectTag.className = 'subject-tag';
                 subjectTag.textContent = subject || 'N/A';
@@ -491,9 +646,9 @@ document.addEventListener('DOMContentLoaded', () => {
             subjectsContainer.appendChild(p);
         }
         
-        document.getElementById('detailParentName').textContent = currentApplication.emergencyContact?.name || 'N/A';
-        document.getElementById('detailParentRelationship').textContent = currentApplication.emergencyContact?.relation || 'N/A';
-        document.getElementById('detailParentPhone').textContent = currentApplication.emergencyContact?.phone || 'N/A';
+        document.getElementById('detailParentName').textContent = currentApplication.parentName || 'N/A';
+        document.getElementById('detailParentRelationship').textContent = currentApplication.parentRelationship || 'N/A';
+        document.getElementById('detailParentPhone').textContent = currentApplication.parentPhone || 'N/A';
         document.getElementById('detailParentEmail').textContent = currentApplication.parentEmail || 'N/A';
         
         const reportCardLink = document.getElementById('reportCardLink');
@@ -514,6 +669,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         document.getElementById('statusChangeSelect').value = currentApplication.status || STATUS.SUBMITTED;
+        
+        // Payment History
+        const paymentHistory = document.getElementById('paymentHistory');
+        paymentHistory.innerHTML = '';
+        
+        if (currentApplication.paymentStatus === PAYMENT_STATUS.APPLICATION_PAID || currentApplication.paymentStatus === PAYMENT_STATUS.FULLY_PAID) {
+            const paymentItem = document.createElement('div');
+            paymentItem.className = 'payment-item';
+            paymentItem.innerHTML = `
+                <div class="payment-info">
+                    <span class="payment-amount">Application Fee: R200.00</span>
+                    <span class="payment-date">Paid on application submission</span>
+                </div>
+                <span class="status-badge payment-status-application_paid">Paid</span>
+            `;
+            paymentHistory.appendChild(paymentItem);
+        }
+        
+        if (currentApplication.payments) {
+            Object.entries(currentApplication.payments).forEach(([month, payment]) => {
+                if (payment.paid) {
+                    const paymentItem = document.createElement('div');
+                    paymentItem.className = 'payment-item';
+                    paymentItem.innerHTML = `
+                        <div class="payment-info">
+                            <span class="payment-amount">${month} Installment: R${payment.amount?.toFixed(2) || '0.00'}</span>
+                            <span class="payment-date">Paid on ${formatDate(payment.paidAt)}</span>
+                        </div>
+                        <span class="status-badge payment-status-fully_paid">Paid</span>
+                    `;
+                    paymentHistory.appendChild(paymentItem);
+                }
+            });
+        }
+        
+        if (paymentHistory.children.length === 0) {
+            const p = document.createElement('p');
+            p.className = 'no-data';
+            p.textContent = 'No payment history available';
+            paymentHistory.appendChild(p);
+        }
         
         const statusHistory = document.getElementById('statusHistory');
         statusHistory.innerHTML = '';
@@ -571,7 +767,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return statusItem;
     }
     
-    async function updateApplicationStatus() {
+async function updateApplicationStatus() {
     if (!currentApplication || !window.firebase) return;
     
     const newStatus = statusChangeSelect.value;
@@ -583,16 +779,41 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoading(true);
         const { doc, updateDoc, serverTimestamp, arrayUnion } = window.firebase;
         
-        // Update the document with status and append to statusUpdates array
-        await updateDoc(doc(window.firebase.db, "applications", currentApplication.id), {
+        // Get the current timestamp for the status update
+        const currentTimestamp = new Date();
+        
+        // Create the status update object
+        const statusUpdate = {
             status: newStatus,
-            statusUpdates: arrayUnion({
-                status: newStatus,
-                timestamp: new Date(), // Use client-side timestamp as fallback
-                updatedBy: adminName.textContent
-            }),
-            lastStatusUpdateTimestamp: serverTimestamp() // Store server timestamp separately
-        });
+            timestamp: currentTimestamp,
+            updatedBy: adminName.textContent
+        };
+        
+        // Update the document with status and append to statusUpdates array
+        const updateData = {
+            status: newStatus,
+            lastStatusUpdateTimestamp: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        };
+        
+        // Only add to statusUpdates array if it exists and arrayUnion is available
+        if (arrayUnion) {
+            updateData.statusUpdates = arrayUnion(statusUpdate);
+        } else {
+            // Fallback: manually manage the array
+            const appRef = doc(window.firebase.db, "applications", currentApplication.id);
+            const docSnap = await window.firebaseGetDoc(appRef);
+            if (docSnap.exists()) {
+                const existingData = docSnap.data();
+                const existingUpdates = existingData.statusUpdates || [];
+                updateData.statusUpdates = [...existingUpdates, statusUpdate];
+            } else {
+                updateData.statusUpdates = [statusUpdate];
+            }
+        }
+        
+        const appRef = doc(window.firebase.db, "applications", currentApplication.id);
+        await updateDoc(appRef, updateData);
         
         // Update local state
         currentApplication.status = newStatus;
@@ -601,7 +822,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         currentApplication.statusUpdates.push({
             status: newStatus,
-            timestamp: new Date(),
+            timestamp: currentTimestamp,
             updatedBy: adminName.textContent
         });
         
@@ -641,13 +862,19 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const statusItem = createStatusItem(
             `Status changed to ${newStatus}`,
-            `${formatDate(new Date())} (by ${adminName.textContent})`,
+            `${formatDate(currentTimestamp)} (by ${adminName.textContent})`,
             icon,
             color
         );
         statusHistory.appendChild(statusItem);
         
         alert(`Application status updated to ${newStatus}`);
+        
+        // If status is approved, show payment options to student
+        if (newStatus === 'approved') {
+            showToast('Student can now proceed with tuition payments', 'success');
+        }
+        
     } catch (error) {
         console.error("Error updating application status:", error);
         alert("Failed to update application status: " + error.message);
@@ -679,9 +906,13 @@ document.addEventListener('DOMContentLoaded', () => {
         y = addPdfText(doc, `School: ${currentApplication.school || 'N/A'}`, 10, y);
         y = addPdfText(doc, `Gender: ${currentApplication.gender || 'N/A'}`, 10, y);
         
+        y = addPdfText(doc, 'Payment Information:', 10, y);
+        y = addPdfText(doc, `Status: ${currentApplication.paymentStatus || 'Pending'}`, 15, y, 5);
+        y = addPdfText(doc, `Plan: ${formatPaymentPlan(currentApplication.paymentPlan || 'upfront')}`, 15, y, 5);
+        
         y = addPdfText(doc, 'Subjects:', 10, y);
-        if (currentApplication.subjects) {
-            currentApplication.subjects.forEach(subject => {
+        if (currentApplication.selectedSubjects) {
+            currentApplication.selectedSubjects.forEach(subject => {
                 y = addPdfText(doc, `- ${subject}`, 15, y, 5);
             });
         } else {
@@ -689,9 +920,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         y = addPdfText(doc, 'Parent/Guardian Information:', 10, y);
-        y = addPdfText(doc, `Name: ${currentApplication.emergencyContact?.name || 'N/A'}`, 10, y);
-        y = addPdfText(doc, `Relationship: ${currentApplication.emergencyContact?.relation || 'N/A'}`, 10, y);
-        y = addPdfText(doc, `Phone: ${currentApplication.emergencyContact?.phone || 'N/A'}`, 10, y);
+        y = addPdfText(doc, `Name: ${currentApplication.parentName || 'N/A'}`, 10, y);
+        y = addPdfText(doc, `Relationship: ${currentApplication.parentRelationship || 'N/A'}`, 10, y);
+        y = addPdfText(doc, `Phone: ${currentApplication.parentPhone || 'N/A'}`, 10, y);
         y = addPdfText(doc, `Email: ${currentApplication.parentEmail || 'N/A'}`, 10, y);
         
         doc.save(`application_${currentApplication.id}.pdf`);
@@ -704,20 +935,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function loadAnalytics() {
+        // Grade Distribution Chart
         const gradeCounts = {};
         applications.forEach(app => {
             const grade = app.grade;
             gradeCounts[grade] = (gradeCounts[grade] || 0) + 1;
         });
         
-        let gradeHtml = '<div class="analytics-data">';
-        for (const grade in gradeCounts) {
-            const percentage = applications.length > 0 ? ((gradeCounts[grade] / applications.length) * 100).toFixed(1) : 0;
-            gradeHtml += `<div class="data-row"><span>Grade ${grade}:</span> <span>${gradeCounts[grade]} (${percentage}%)</span></div>`;
-        }
-        gradeHtml += '</div>';
-        document.getElementById('gradeChart').innerHTML = gradeHtml;
+        const gradeChart = new Chart(document.getElementById('gradeChart'), {
+            type: 'bar',
+            data: {
+                labels: Object.keys(gradeCounts).map(g => `Grade ${g}`),
+                datasets: [{
+                    label: 'Applications by Grade',
+                    data: Object.values(gradeCounts),
+                    backgroundColor: '#2e5c89',
+                    borderColor: '#254267',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
         
+        // Status Distribution Chart
         const statusCounts = {
             [STATUS.SUBMITTED]: 0,
             [STATUS.UNDER_REVIEW]: 0,
@@ -730,13 +978,87 @@ document.addEventListener('DOMContentLoaded', () => {
             statusCounts[status]++;
         });
         
-        let statusHtml = '<div class="analytics-data">';
-        for (const status in statusCounts) {
-            const percentage = applications.length > 0 ? ((statusCounts[status] / applications.length) * 100).toFixed(1) : 0;
-            statusHtml += `<div class="data-row"><span>${status}:</span> <span>${statusCounts[status]} (${percentage}%)</span></div>`;
-        }
-        statusHtml += '</div>';
-        document.getElementById('statusChart').innerHTML = statusHtml;
+        const statusChart = new Chart(document.getElementById('statusChart'), {
+            type: 'pie',
+            data: {
+                labels: ['Submitted', 'Under Review', 'Approved', 'Rejected'],
+                datasets: [{
+                    data: Object.values(statusCounts),
+                    backgroundColor: ['#3182ce', '#ed8936', '#48bb78', '#f56565'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+        
+        // Payment Status Chart
+        const paymentCounts = {
+            [PAYMENT_STATUS.PENDING]: 0,
+            [PAYMENT_STATUS.APPLICATION_PAID]: 0,
+            [PAYMENT_STATUS.FULLY_PAID]: 0
+        };
+        
+        applications.forEach(app => {
+            const paymentStatus = app.paymentStatus || PAYMENT_STATUS.PENDING;
+            paymentCounts[paymentStatus]++;
+        });
+        
+        const paymentChart = new Chart(document.getElementById('paymentChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Payment Pending', 'App Fee Paid', 'Fully Paid'],
+                datasets: [{
+                    data: Object.values(paymentCounts),
+                    backgroundColor: ['#f6ad55', '#4299e1', '#48bb78'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+        
+        // Revenue Chart
+        let totalRevenue = 0;
+        let receivedRevenue = 0;
+        
+        applications.forEach(app => {
+            const subjectCount = app.selectedSubjects ? app.selectedSubjects.length : 0;
+            const paymentPlan = app.paymentPlan || 'upfront';
+            const totalAmount = calculateTotalAmount(subjectCount, paymentPlan);
+            const amountPaid = calculateAmountPaid(app, totalAmount);
+            
+            totalRevenue += totalAmount;
+            receivedRevenue += amountPaid;
+        });
+        
+        const outstandingRevenue = totalRevenue - receivedRevenue;
+        
+        const revenueChart = new Chart(document.getElementById('revenueChart'), {
+            type: 'bar',
+            data: {
+                labels: ['Total Expected', 'Received', 'Outstanding'],
+                datasets: [{
+                    label: 'Revenue (R)',
+                    data: [totalRevenue, receivedRevenue, outstandingRevenue],
+                    backgroundColor: ['#2e5c89', '#48bb78', '#f56565'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
     }
     
     function formatDate(date) {
@@ -770,4 +1092,77 @@ document.addEventListener('DOMContentLoaded', () => {
             loadingElement.remove();
         }
     }
+
+    // Toast notification function for admin.js
+function showToast(message, type = 'info') {
+    // Create toast container if it doesn't exist
+    let toastContainer = document.getElementById('toastContainer');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toastContainer';
+        toastContainer.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+        `;
+        document.body.appendChild(toastContainer);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.style.cssText = `
+        background-color: ${type === 'success' ? '#44c0b6' : type === 'error' ? '#e64a2e' : type === 'warning' ? '#ff9800' : '#2e5c89'};
+        color: white;
+        padding: 12px 20px;
+        margin-bottom: 10px;
+        border-radius: 5px;
+        display: flex;
+        align-items: center;
+        animation: slideIn 0.5s, fadeOut 0.5s 3.5s forwards;
+    `;
+    
+    const icons = {
+        success: 'fa-check-circle',
+        error: 'fa-exclamation-circle',
+        warning: 'fa-exclamation-triangle',
+        info: 'fa-info-circle'
+    };
+    
+    toast.innerHTML = `
+        <i class="fas ${icons[type] || 'fa-info-circle'}" style="margin-right: 10px;"></i>
+        <span>${message}</span>
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    // Add enter animation
+    setTimeout(() => toast.classList.add('show'), 10);
+    
+    // Remove after delay
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+            if (toast.parentNode === toastContainer) {
+                toastContainer.removeChild(toast);
+            }
+        }, 500);
+    }, 4000);
+}
+
+// Add CSS animations for toast
+if (!document.querySelector('#toastStyles')) {
+    const style = document.createElement('style');
+    style.id = 'toastStyles';
+    style.textContent = `
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(100%); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes fadeOut {
+            to { opacity: 0; transform: translateX(100%); }
+        }
+    `;
+    document.head.appendChild(style);
+}
 });

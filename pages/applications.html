@@ -7,29 +7,14 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link rel="stylesheet" href="../styling/application.css">
 <link rel="stylesheet" href="../styling/index.css">
-<style>
-/* Toast Notifications */
-#toastContainer {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    z-index: 9999;
-}
-.toast {
-    background-color: #2e5c89;
-    color: #fff;
-    padding: 12px 20px;
-    margin-bottom: 10px;
-    border-radius: 5px;
-    display: flex;
-    align-items: center;
-    animation: slideIn 0.5s, fadeOut 0.5s 3.5s forwards;
-}
-.toast.success { background-color: #44c0b6; }
-.toast.error { background-color: #e64a2e; }
-@keyframes slideIn { from {opacity:0; transform: translateX(100%);} to {opacity:1; transform: translateX(0);} }
-@keyframes fadeOut { to {opacity:0; transform: translateX(100%);} }
-.toast i { margin-right: 10px; }
+<!-- Add this with your other scripts in the head section -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+ <!-- Paystack SDK -->
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+<script src="../applicationScripts/payments.js" type="module"></script>
+
+
+
 </style>
 </head>
 <body>
@@ -425,6 +410,200 @@
         </div>
     </section>
 
+    <!-- Dashboard Section -->
+    <section class="dashboard-section" id="dashboardSection" style="display: none;">
+        <div class="container">
+            <div class="dashboard-header">
+                <h2>Application Dashboard</h2>
+                <p>Track your application status and manage payments</p>
+            </div>
+            
+            <!-- Tuition Payment Notice -->
+            <div id="tuitionPaymentNotice" style="display: none;"></div>
+            
+            <div class="dashboard-tabs">
+                <div class="tab-buttons">
+                    <button class="tab-button active" data-tab="status">Application Status</button>
+                    <button class="tab-button" data-tab="payments">Payments & Fees</button>
+                </div>
+                
+                <div class="tab-content">
+                    <!-- Status Tab -->
+                    <div class="tab-pane active" id="statusTab">
+                        <div class="status-header">
+                            <h3>Application Progress</h3>
+                            <span class="status-badge" id="applicationStatusBadge">Submitted</span>
+                        </div>
+                        
+                        <div class="status-timeline">
+                            <div class="timeline-item completed" id="timelineApplication">
+                                <div class="timeline-marker"></div>
+                                <div class="timeline-content">
+                                    <h4>Application Submitted</h4>
+                                    <p>Your application has been received</p>
+                                    <span class="timeline-date" id="applicationDate">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="timeline-item" id="timelineReview">
+                                <div class="timeline-marker"></div>
+                                <div class="timeline-content">
+                                    <h4>Under Review</h4>
+                                    <p>Application is being reviewed by our team</p>
+                                    <span class="timeline-date" id="reviewDate">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="timeline-item" id="timelineApproval">
+                                <div class="timeline-marker"></div>
+                                <div class="timeline-content">
+                                    <h4>Approval</h4>
+                                    <p>Application approval decision</p>
+                                    <span class="timeline-date" id="approvalDate">-</span>
+                                </div>
+                            </div>
+                            
+                            <div class="timeline-item" id="timelineEnrollment">
+                                <div class="timeline-marker"></div>
+                                <div class="timeline-content">
+                                    <h4>Enrollment Complete</h4>
+                                    <p>Ready to start classes</p>
+                                    <span class="timeline-date" id="enrollmentDate">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="application-summary">
+                            <h4>Application Summary</h4>
+                            <div class="summary-grid">
+                                <div class="summary-item">
+                                    <label>Application Status:</label>
+                                    <span id="applicationStatusText">Under review</span>
+                                </div>
+                                <div class="summary-item">
+                                    <label>Application Fee:</label>
+                                    <span class="status-paid" id="appFeeStatus">Paid</span>
+                                </div>
+                                <div class="summary-item">
+                                    <label>Subjects Selected:</label>
+                                    <span id="subjectsSummary">0 subjects</span>
+                                </div>
+                                <div class="summary-item">
+                                    <label>Tuition Fees:</label>
+                                    <span class="status-pending" id="tuitionFeeStatus">Pending</span>
+                                </div>
+                                <div class="summary-item">
+                                    <label>Payment Plan:</label>
+                                    <span id="paymentPlanSummary">Not selected</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Payments Tab -->
+                    <div class="tab-pane" id="paymentsTab">
+                        <div class="payments-header">
+                            <h3>Fee Payment</h3>
+                            <p>Pay your tuition fees to complete enrollment</p>
+                        </div>
+                        
+                        <div class="fee-summary">
+                            <div class="fee-card">
+                                <h4>Application Fee</h4>
+                                <div class="fee-amount">R200.00</div>
+                                <div class="fee-status paid" id="appFeeStatusBadge">Paid</div>
+                            </div>
+                            <div class="fee-card">
+                                <h4>Tuition Fees</h4>
+                                <div class="fee-amount" id="subjectFeeAmountDisplay">R0.00</div>
+                                <div class="fee-status pending" id="subjectFeeStatusBadge">Pending</div>
+                            </div>
+                        </div>
+                        
+                                            <!-- Payment Plan Selection -->
+                        <div class="payment-plan-selection" style="margin-bottom: 20px;">
+                            <h4>Select Payment Plan</h4>
+                            <p>Choose how you want to pay your tuition fees</p>
+                            <select id="paymentPlanSelect" class="form-control" style="max-width: 300px;">
+                                <option value="">Select Payment Plan</option>
+                                <option value="upfront">Upfront Payment (Save R400)</option>
+                                <option value="sixMonths">6 Months Installment</option>
+                                <option value="tenMonths">10 Months Installment</option>
+                            </select>
+                        </div>
+                        
+                                            <!-- Payment Cards (shown when no payment plan selected) -->
+                        <div class="payment-options">
+                            <h4>Choose Payment Method</h4>
+                            <p>Select how you'd like to pay your tuition fees</p>
+                            
+                            <div class="payment-cards">
+                                <!-- Upfront Payment -->
+                                <div class="payment-card" data-plan="upfront">
+                                    <h5>Upfront Payment</h5>
+                                    <div class="payment-amount" id="upfrontAmount">R0.00</div>
+                                    <p class="monthly-amount">One-time payment</p>
+                                    <p>Save R400 with upfront payment</p>
+                                    <button class="btn btn-primary pay-tuition-btn" data-plan="upfront">
+                                        Pay Upfront
+                                    </button>
+                                </div>
+                                
+                                <!-- 6 Months Installment -->
+                                <div class="payment-card" data-plan="sixMonths">
+                                    <h5>6 Months Installment</h5>
+                                    <div class="payment-amount" id="sixMonthsMonthly">R0.00/month</div>
+                                    <p class="monthly-amount">Total: <span id="sixMonthsTotal">R0.00</span></p>
+                                    <p>Pay over 6 months</p>
+                                    <button class="btn btn-primary pay-tuition-btn" data-plan="sixMonths">
+                                        Start Payments
+                                    </button>
+                                </div>
+                                
+                                <!-- 10 Months Installment -->
+                                <div class="payment-card" data-plan="tenMonths">
+                                    <h5>10 Months Installment</h5>
+                                    <div class="payment-amount" id="tenMonthsMonthly">R0.00/month</div>
+                                    <p class="monthly-amount">Total: <span id="tenMonthsTotal">R0.00</span></p>
+                                    <p>Pay over 10 months</p>
+                                    <button class="btn btn-primary pay-tuition-btn" data-plan="tenMonths">
+                                        Start Payments
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        
+                                            <!-- Monthly Payments (shown when installment plan selected) -->
+                        <div class="monthly-payments-container" id="monthlyPayments" style="display: none;">
+                            <h4>Monthly Payments</h4>
+                            <p>Pay your tuition fees month by month</p>
+                            <!-- Monthly payment buttons will be generated here -->
+                        </div>
+                        
+                        <div class="payment-history">
+                            <h4>Payment History</h4>
+                            <div class="history-table">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Description</th>
+                                            <th>Amount</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="paymentHistoryBody">
+                                        <!-- Payment history will be populated here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
     <section class="application-status" id="applicationStatus" style="display: none;">
         <div class="container">
             <div class="status-card">
@@ -451,7 +630,142 @@
         </div>
     </section>
 
-        <!-- Footer -->
+<!-- Paystack Application Fee Modal (Compulsory) -->
+<div id="paystackPaymentModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Application Fee Payment</h3>
+            <span class="close">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="payment-info">
+                <p><strong class="payment-amount">Application Fee: R200.00</strong></p>
+                <p class="payment-description">This application fee is compulsory and must be paid to submit your application.</p>
+                
+                <div class="fee-breakdown">
+                    <p><small>Annual Registration Fee for First Entering Learners</small></p>
+                </div>
+                
+                <div class="payment-security">
+                    <i class="fas fa-lock"></i>
+                    <span>Secure payment processed by Paystack</span>
+                </div>
+                
+                <div class="payment-methods">
+                    <p><strong>Accepted Payment Methods:</strong></p>
+                    <div class="payment-icons">
+                        <i class="fab fa-cc-visa" title="Visa"></i>
+                        <i class="fab fa-cc-mastercard" title="Mastercard"></i>
+                        <i class="fab fa-cc-amex" title="American Express"></i>
+                        <i class="fas fa-mobile-alt" title="Mobile Money"></i>
+                        <i class="fas fa-university" title="Bank Transfer"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="confirmPaystackPayment" class="btn btn-primary">
+                <i class="fas fa-lock"></i> Pay R200 Application Fee
+            </button>
+            <button id="cancelPaystackPayment" class="btn btn-secondary">Cancel Application</button>
+        </div>
+    </div>
+</div>
+
+<!-- Subject Fee Payment Modal (Optional) -->
+<div id="subjectFeeModal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Subject Fees Payment</h3>
+            <span class="close">&times;</span>
+        </div>
+        <div class="modal-body">
+            <div class="payment-info">
+                <p><strong>Application Submitted Successfully!</strong></p>
+                <p>You can now pay your subject fees. Choose your payment plan:</p>
+                
+                <div class="form-group">
+                    <label for="paymentPlanSelect">Payment Plan:</label>
+                    <select id="paymentPlanSelect" class="form-control">
+                        <option value="upfront">Upfront Payment (Save R400)</option>
+                        <option value="sixMonths">6 Months Installment</option>
+                        <option value="tenMonths">10 Months Installment</option>
+                    </select>
+                </div>
+                
+                <div class="fee-breakdown">
+                    <h4>Fee Calculation:</h4>
+                    <div id="feeCalculation">
+                        <p>Subjects Selected: <span id="subjectCount">0</span></p>
+                        <p>Payment Plan: <span id="selectedPlan">Upfront</span></p>
+                        <p><strong>Total Amount: <span id="totalAmount">R0.00</span></strong></p>
+                    </div>
+                </div>
+                
+                <div class="payment-comparison">
+                    <small><strong>Payment Plan Comparison:</strong></small>
+                    <table style="width: 100%; margin-top: 10px; font-size: 0.9em;">
+                        <thead>
+                            <tr>
+                                <th>Subjects</th>
+                                <th>Upfront</th>
+                                <th>6 Months</th>
+                                <th>10 Months</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>1 Subject</td>
+                                <td>R1,100</td>
+                                <td>R1,300</td>
+                                <td>R1,500</td>
+                            </tr>
+                            <tr>
+                                <td>2 Subjects</td>
+                                <td>R2,100</td>
+                                <td>R2,300</td>
+                                <td>R2,500</td>
+                            </tr>
+                            <tr>
+                                <td>3 Subjects</td>
+                                <td>R3,100</td>
+                                <td>R3,300</td>
+                                <td>R3,500</td>
+                            </tr>
+                            <tr>
+                                <td>4 Subjects</td>
+                                <td>R4,100</td>
+                                <td>R4,300</td>
+                                <td>R4,500</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="payment-security">
+                    <i class="fas fa-lock"></i>
+                    <span>Secure payment processed by Paystack</span>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button id="confirmSubjectPayment" class="btn btn-primary">
+                <i class="fas fa-lock"></i> Pay Subject Fees
+            </button>
+            <button id="cancelSubjectPayment" class="btn btn-secondary">Pay Later</button>
+        </div>
+    </div>
+</div>
+
+<!-- Simple Loading Spinner for Payment -->
+<div id="paymentLoading" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 10001; justify-content: center; align-items: center; flex-direction: column;">
+    <i class="fas fa-spinner fa-spin fa-2x" style="color: #2e5c89; margin-bottom: 1rem;"></i>
+    <p style="color: #2e5c89;">Processing payment...</p>
+</div>
+
+        
+
+    <!-- Footer -->
     <footer>
         <div class="container">
             <div class="footer-content">
@@ -542,7 +856,7 @@
 
             <div class="footer-bottom">
                 <div class="footer-bottom-content">
-                    <p>&copy; 2023 Alusani Maths and Science Academy. All rights reserved.</p>
+                    <p>&copy; <span id="currentYear">2023</span> Alusani Maths and Science Academy. All rights reserved.</p>
                     <div class="footer-credits">
                         <p>Developed and maintained by <strong>Nalokie Holdings</strong></p>
                     </div>
@@ -552,13 +866,14 @@
     </footer>
 
     <div id="toastContainer"></div>
+
 <script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
 <!-- Firebase SDKs -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 
 const firebaseConfig = {
@@ -598,6 +913,9 @@ window.firebaseGetDocs = getDocs;
 window.firebaseDoc = doc;
 window.firebaseSetDoc = setDoc;
 window.firebaseGetDoc = getDoc;
+window.firebaseOnSnapshot = onSnapshot;
+window.firebaseUpdateDoc = updateDoc; // This was missing
+window.firebaseArrayUnion = arrayUnion;
 
 // Toast helper
 window.showToast = (message, type='success') => {
@@ -608,6 +926,6 @@ window.showToast = (message, type='success') => {
     setTimeout(()=> toast.remove(), 4000);
 };
 </script>
-<script src="../scripts/application.js" type="module"></script>
+<script src="../applicationScripts/main.js" type="module"></script>
 </body>
 </html>

@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../styling/admin.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="admin-container">
@@ -56,6 +57,9 @@
                         <a href="#" class="menu-item" data-section="applications">
                             <i class="fas fa-file-alt"></i> Applications
                         </a>
+                        <a href="#" class="menu-item" data-section="payments">
+                            <i class="fas fa-credit-card"></i> Payment Tracking
+                        </a>
                         <a href="#" class="menu-item" data-section="analytics">
                             <i class="fas fa-chart-bar"></i> Analytics
                         </a>
@@ -95,12 +99,12 @@
                                 </div>
                             </div>
                             <div class="stat-card">
-                                <div class="stat-icon rejected">
-                                    <i class="fas fa-times-circle"></i>
+                                <div class="stat-icon">
+                                    <i class="fas fa-money-bill-wave"></i>
                                 </div>
                                 <div class="stat-info">
-                                    <h3 id="rejectedApplications">0</h3>
-                                    <p>Rejected</p>
+                                    <h3 id="paidApplications">0</h3>
+                                    <p>Fully Paid</p>
                                 </div>
                             </div>
                         </div>
@@ -133,6 +137,12 @@
                                     <option value="11">Grade 11</option>
                                     <option value="12">Grade 12</option>
                                 </select>
+                                <select id="paymentFilter">
+                                    <option value="all">All Payments</option>
+                                    <option value="pending">Payment Pending</option>
+                                    <option value="application_paid">App Fee Paid</option>
+                                    <option value="fully_paid">Fully Paid</option>
+                                </select>
                                 <input type="text" id="searchInput" placeholder="Search applications...">
                             </div>
                         </div>
@@ -146,6 +156,7 @@
                                         <th>School</th>
                                         <th>Subjects</th>
                                         <th>Status</th>
+                                        <th>Payment Status</th>
                                         <th>Submitted</th>
                                         <th>Actions</th>
                                     </tr>
@@ -164,6 +175,69 @@
                             <button class="btn btn-outline" id="nextPageBtn">
                                 Next <i class="fas fa-chevron-right"></i>
                             </button>
+                        </div>
+                    </section>
+
+                    <!-- Payment Tracking Section -->
+                    <section class="content-section" id="paymentsSection">
+                        <div class="section-header">
+                            <h2>Payment Tracking</h2>
+                            <div class="filters">
+                                <select id="paymentStatusFilter">
+                                    <option value="all">All Payment Status</option>
+                                    <option value="pending">Payment Pending</option>
+                                    <option value="application_paid">App Fee Paid</option>
+                                    <option value="fully_paid">Fully Paid</option>
+                                </select>
+                                <select id="paymentPlanFilter">
+                                    <option value="all">All Payment Plans</option>
+                                    <option value="upfront">Upfront</option>
+                                    <option value="sixMonths">6 Months</option>
+                                    <option value="tenMonths">10 Months</option>
+                                </select>
+                                <input type="text" id="paymentSearchInput" placeholder="Search students...">
+                            </div>
+                        </div>
+
+                        <div class="applications-table-container">
+                            <table class="applications-table">
+                                <thead>
+                                    <tr>
+                                        <th>Student Name</th>
+                                        <th>Grade</th>
+                                        <th>Payment Plan</th>
+                                        <th>Payment Status</th>
+                                        <th>Total Amount</th>
+                                        <th>Amount Paid</th>
+                                        <th>Balance</th>
+                                        <th>Last Payment</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="paymentsTableBody">
+                                    <!-- Will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="payment-summary">
+                            <div class="summary-card">
+                                <h4>Payment Summary</h4>
+                                <div class="summary-grid">
+                                    <div class="summary-item">
+                                        <span>Total Expected Revenue:</span>
+                                        <strong id="totalExpectedRevenue">R0.00</strong>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span>Total Received:</span>
+                                        <strong id="totalReceived" style="color: var(--success);">R0.00</strong>
+                                    </div>
+                                    <div class="summary-item">
+                                        <span>Outstanding Balance:</span>
+                                        <strong id="totalOutstanding" style="color: var(--danger);">R0.00</strong>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </section>
 
@@ -220,6 +294,32 @@
                             </div>
 
                             <div class="detail-card">
+                                <h3>Payment Information</h3>
+                                <div class="detail-grid">
+                                    <div class="detail-item">
+                                        <label>Payment Status</label>
+                                        <p id="detailPaymentStatus">-</p>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Payment Plan</label>
+                                        <p id="detailPaymentPlan">-</p>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Total Amount</label>
+                                        <p id="detailTotalAmount">-</p>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Amount Paid</label>
+                                        <p id="detailAmountPaid">-</p>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Balance</label>
+                                        <p id="detailBalance">-</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="detail-card">
                                 <h3>Subjects</h3>
                                 <div id="detailSubjects" class="subjects-list">
                                     <!-- Will be populated by JavaScript -->
@@ -269,6 +369,13 @@
                             </div>
 
                             <div class="detail-card">
+                                <h3>Payment History</h3>
+                                <div id="paymentHistory" class="payment-history-list">
+                                    <!-- Will be populated by JavaScript -->
+                                </div>
+                            </div>
+
+                            <div class="detail-card">
                                 <h3>Application Status History</h3>
                                 <div id="statusHistory" class="status-history">
                                     <!-- Will be populated by JavaScript -->
@@ -283,15 +390,19 @@
                         <div class="analytics-grid">
                             <div class="analytics-card">
                                 <h3>Applications by Grade</h3>
-                                <div id="gradeChart" class="chart-container">
-                                    <!-- Chart will be rendered here -->
-                                </div>
+                                <canvas id="gradeChart" height="300"></canvas>
                             </div>
                             <div class="analytics-card">
                                 <h3>Applications by Status</h3>
-                                <div id="statusChart" class="chart-container">
-                                    <!-- Chart will be rendered here -->
-                                </div>
+                                <canvas id="statusChart" height="300"></canvas>
+                            </div>
+                            <div class="analytics-card">
+                                <h3>Payment Status Distribution</h3>
+                                <canvas id="paymentChart" height="300"></canvas>
+                            </div>
+                            <div class="analytics-card">
+                                <h3>Revenue Overview</h3>
+                                <canvas id="revenueChart" height="300"></canvas>
                             </div>
                         </div>
                     </section>
