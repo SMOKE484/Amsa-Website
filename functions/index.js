@@ -1,211 +1,168 @@
-const functions = require('firebase-functions');
-const crypto = require('crypto');
-const axios = require('axios');
-require('dotenv').config();
+// index.js (Using v2 SDK syntax for scheduled functions)
 
-exports.createPayfastPayment = functions.https.onRequest(async (req, res) => {
-  // Set CORS headers
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+// Import v2 scheduler and logger
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+const logger = require("firebase-functions/logger"); // Use the v2 logger
 
-  if (req.method === 'OPTIONS') {
-    return res.status(204).send('');
-  }
+const admin = require("firebase-admin");
 
-  try {
-    if (req.method !== 'POST') {
-      return res.status(405).json({ error: 'Method not allowed' });
-    }
+// Initialize Firebase Admin SDK (only once)
+admin.initializeApp();
 
-    const { applicationId, email, amount } = req.body;
+// Get Firestore and Messaging instances
+const db = admin.firestore();
+const messaging = admin.messaging();
 
-    if (!applicationId || !email || !amount) {
-      return res.status(400).json({
-        success: false,
-        error: 'Missing required fields: applicationId, email, amount',
-      });
-    }
+/**
+ * Sends a web push notification reminder to students with pending monthly payments.
+ * Runs at 9:00 AM on the 1st day of every month, according to South Africa Standard Time.
+ */
+exports.monthlyPaymentReminderPush = onSchedule(
+    {
+        schedule: "0 9 1 * *", // Cron syntax: minute(0), hour(9), day-of-month(1), month(* = every), day-of-week(* = every)
+        timeZone: "Africa/Johannesburg", // Set to South Africa timezone (SAST)
+        // You can add other options like memory, timeoutSeconds etc. here if needed
+        // memory: "512MiB",
+        // timeoutSeconds: 300,
+    },
+    async (event) => { // The event object is passed to the handler in v2
 
-    // Validate email
-    const merchantEmail = 'info@alusaniacademy.edu.za';
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid email format',
-      });
-    }
-    if (email.toLowerCase() === merchantEmail.toLowerCase()) {
-      return res.status(400).json({
-        success: false,
-        error: 'Cannot use merchant email for payment',
-      });
-    }
+        logger.info("Starting: Running monthly payment reminder PUSH job..."); // Use v2 logger
 
-    console.log('🔄 Creating PayFast payment for:', applicationId, 'with email:', email);
+        const today = new Date();
+        // Ensure month name is derived correctly for the target timezone
+        const monthName = today.toLocaleString('en-US', { month: 'long', timeZone: 'Africa/Johannesburg' }).toLowerCase();
+        const year = today.getFullYear();
+        // Construct the key used in Firestore (e.g., "october_2025")
+        const currentMonthKey = `${monthName}_${year}`;
 
-    // PayFast credentials from environment variables
-    const merchant_id = process.env.PAYFAST_MERCHANT_ID;
-    const merchant_key = process.env.PAYFAST_MERCHANT_KEY;
-    const passphrase = process.env.PAYFAST_PASSPHRASE;
+        logger.info(`Checking for pending payments for: ${currentMonthKey}`);
 
-    if (!merchant_id || !merchant_key || !passphrase) {
-      throw new Error('PayFast merchant credentials not configured');
-    }
+        try {
+            // Query Firestore for applications that meet the criteria:
+            // 1. Status is 'approved'
+            // 2. Payment plan is 'sixMonths' or 'tenMonths'
+            const querySnapshot = await db.collection('applications')
+                .where('status', '==', 'approved')
+                .where('paymentPlan', 'in', ['sixMonths', 'tenMonths'])
+                .get();
 
-    // Determine environment (sandbox for testing, live for production)
-    const testingMode = process.env.PAYFAST_TESTING_MODE === 'true';
-    const pfHost = testingMode ? 'sandbox.payfast.co.za' : 'www.payfast.co.za';
-    // Use /eng/process for sandbox testing since /onsite/process is not supported
-    const endpoint = testingMode ? '/eng/process' : '/onsite/process';
+            if (querySnapshot.empty) {
+                logger.info("Result: No approved applications on installment plans found. Job finished.");
+                return null; // Exit successfully if no relevant applications
+            }
 
-    // PayFast data for payment
-    const pfData = {
-      merchant_id,
-      merchant_key,
-      return_url: `https://amsa-website-3b9d5.web.app/payment-success.html?application_id=${applicationId}`,
-      cancel_url: `https://amsa-website-3b9d5.web.app/payment-cancel.html?application_id=${applicationId}`,
-      notify_url: `https://us-central1-amsa-website-3b9d5.cloudfunctions.net/payfastIPN?application_id=${applicationId}`,
-      email_address: email,
-      name_first: 'Application',
-      name_last: 'Payment',
-      m_payment_id: applicationId,
-      amount: (amount / 100).toFixed(2), // Convert cents to Rands (e.g., 15000 -> 150.00)
-      item_name: 'Alusani Academy Application Fee',
-      item_description: 'Application submission fee for Alusani Maths and Science Academy',
-      email_confirmation: '1',
-      confirmation_address: merchantEmail,
-    };
+            logger.info(`Found ${querySnapshot.size} potential applications to check.`);
 
-    // Generate signature
-    const signature = generateSignature(pfData, passphrase);
-    pfData.signature = signature;
+            let remindersSentCount = 0;
+            const notificationPromises = []; // Array to hold all messaging promises
+            const cleanupPromises = []; // Array to hold promises for token cleanup
 
-    // Log data for debugging
-    console.log('PayFast data:', JSON.stringify(pfData, null, 2));
-    console.log('Signature:', signature);
+            // Loop through each relevant application
+            querySnapshot.forEach(doc => {
+                const app = doc.data();
+                const userId = doc.id;
 
-    // Convert data to URL-encoded string
-    const pfParamString = dataToString(pfData);
-    console.log('URL-encoded string:', pfParamString);
+                // Safely access nested payment data for the current month
+                const paymentData = app.payments ? app.payments[currentMonthKey] : null;
 
-    // Request payment identifier from PayFast
-    try {
-      const response = await axios.post(`https://${pfHost}${endpoint}`, pfParamString, {
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-      });
+                // Determine if a reminder is needed:
+                const needsReminder = !paymentData || paymentData.paid !== true;
 
-      const responseData = response.data;
+                if (needsReminder) {
+                    // Check if the application document has push notification tokens stored
+                    if (app.pushTokens && Array.isArray(app.pushTokens) && app.pushTokens.length > 0) {
 
-      if (responseData.uuid) {
-        console.log('✅ PayFast payment identifier received:', responseData.uuid);
-        return res.status(200).json({
-          success: true,
-          uuid: responseData.uuid,
-          testingMode,
-        });
-      } else {
-        throw new Error('No UUID received from PayFast: ' + JSON.stringify(responseData));
-      }
-    } catch (error) {
-      console.error('❌ PayFast API error:', error.response?.data || error.message);
-      throw new Error(`PayFast API error: ${error.response?.data || error.message}`);
-    }
+                        // Construct the notification message payload
+                        const messagePayload = {
+                            notification: {
+                                title: "Alusani Academy Payment Reminder",
+                                body: `Hi ${app.firstName || 'Student'}, your tuition payment for ${monthName.charAt(0).toUpperCase() + monthName.slice(1)} is due soon. Please log in to your portal to complete the payment.`,
+                                icon: "https://amsa-website-3b9d5.firebaseapp.com/images/amsaLogo.png" // Optional: URL to your logo
+                            },
+                            webpush: { // Web Push specific configuration
+                                fcmOptions: {
+                                    // URL to open when the user clicks the notification
+                                    link: "https://amsa-website-3b9d5.firebaseapp.com/applications.html#payments" // Direct link to payments tab in student portal
+                                }
+                            },
+                            tokens: app.pushTokens // Array of FCM tokens for this user's devices/browsers
+                        };
 
-  } catch (error) {
-    console.error('❌ PayFast payment error:', error);
-    return res.status(500).json({
-      success: false,
-      error: error.message || 'Internal server error',
-    });
-  }
-});
+                        logger.info(`Action: Preparing notification for user ${userId} (${app.firstName}) for month ${currentMonthKey}`);
 
-// Handle PayFast ITN (Instant Transaction Notification)
-exports.payfastIPN = functions.https.onRequest(async (req, res) => {
-  try {
-    console.log('📩 PayFast ITN received:', JSON.stringify(req.body, null, 2));
+                        // Add the promise to send the message to the array
+                        notificationPromises.push(
+                            messaging.sendMulticast(messagePayload)
+                                .then((response) => {
+                                    remindersSentCount += response.successCount;
+                                    logger.log(`User ${userId}: Successfully sent ${response.successCount} notifications.`); // Use logger.log for general info
 
-    // Always return 200 to PayFast immediately
-    res.status(200).send('OK');
+                                    // Check for failures and identify tokens to remove
+                                    if (response.failureCount > 0) {
+                                        logger.warn(`User ${userId}: Failed to send notification to ${response.failureCount} tokens.`); // Use logger.warn
+                                        const tokensToRemove = [];
+                                        response.responses.forEach((resp, idx) => {
+                                            if (!resp.success) {
+                                                const failedToken = app.pushTokens[idx];
+                                                // Log the specific error for the failed token
+                                                logger.error(`  - Token[${idx}]: ${failedToken}, Error: ${resp.error.message} (Code: ${resp.error.code})`); // Use logger.error
 
-    const pfData = req.body;
-    const applicationId = pfData.m_payment_id;
+                                                // Check if the error indicates the token is invalid or unregistered
+                                                if (resp.error.code === 'messaging/registration-token-not-registered' ||
+                                                    resp.error.code === 'messaging/invalid-registration-token') {
+                                                    tokensToRemove.push(failedToken);
+                                                    logger.info(`  - Marked token for removal: ${failedToken}`);
+                                                }
+                                            }
+                                        });
 
-    if (!applicationId) {
-      console.error('❌ No application ID in ITN');
-      return;
-    }
+                                        // If there are tokens to remove, add a cleanup task
+                                        if (tokensToRemove.length > 0) {
+                                            const userRef = db.collection('applications').doc(userId);
+                                            logger.info(`Action: Scheduling removal of ${tokensToRemove.length} invalid tokens for user ${userId}.`);
+                                            // Add the update promise to the cleanupPromises array
+                                            cleanupPromises.push(
+                                                userRef.update({
+                                                    // Use arrayRemove with the spread operator to handle multiple tokens
+                                                    pushTokens: admin.firestore.FieldValue.arrayRemove(...tokensToRemove)
+                                                }).catch(cleanupError => {
+                                                    logger.error(`Error removing tokens for user ${userId}:`, cleanupError);
+                                                })
+                                            );
+                                        }
+                                    }
+                                })
+                                .catch(error => {
+                                     logger.error(`Error sending notification multicast to user ${userId}:`, error);
+                                })
+                        );
+                    } else {
+                         logger.info(`Info: User ${userId} (${app.firstName}) needs reminder for ${currentMonthKey} but has no registered push tokens.`);
+                    }
+                } else {
+                     logger.info(`Info: User ${userId} (${app.firstName}) has already paid for ${currentMonthKey}. No reminder needed.`);
+                }
+            });
 
-    // Verify signature for security
-    const passphrase = process.env.PAYFAST_PASSPHRASE;
-    if (!passphrase) {
-      console.error('❌ PayFast passphrase not configured');
-      return;
-    }
-    const signature = generateSignature(pfData, passphrase);
-    if (signature !== pfData.signature) {
-      console.error('❌ Invalid ITN signature:', {
-        received: pfData.signature,
-        generated: signature,
-        inputData: pfData,
-      });
-      return;
-    }
+            // Wait for all the notification sending promises to complete
+            await Promise.all(notificationPromises);
+            logger.info(`Result: Finished sending notifications. Total successful sends: ${remindersSentCount}.`);
 
-    if (pfData.payment_status === 'COMPLETE') {
-      console.log('✅ Payment completed for application:', applicationId);
-      await updateApplicationPaymentStatus(applicationId, 'paid', {
-        amount_gross: pfData.amount_gross,
-        amount_fee: pfData.amount_fee,
-        amount_net: pfData.amount_net,
-        pf_payment_id: pfData.pf_payment_id,
-      });
-    } else if (pfData.payment_status === 'CANCELLED') {
-      console.log('❌ Payment cancelled for application:', applicationId);
-      await updateApplicationPaymentStatus(applicationId, 'cancelled');
-    }
+            // Wait for all token cleanup promises to complete
+            if (cleanupPromises.length > 0) {
+                logger.info(`Action: Waiting for ${cleanupPromises.length} token cleanup operations to complete...`);
+                await Promise.all(cleanupPromises);
+                logger.info("Result: Token cleanup operations finished.");
+            }
 
-  } catch (err) {
-    console.error('❌ ITN handler error:', err);
-    res.status(200).send('OK');
-  }
-});
+        } catch (error) {
+            // Log any errors during the function execution using the v2 logger
+            logger.error("Error executing monthlyPaymentReminderPush function:", error);
+        }
 
-// Helper function to generate signature
-function generateSignature(data, passPhrase) {
-  // Sort keys alphabetically
-  const orderedKeys = Object.keys(data).sort();
-  let pfOutput = '';
+        logger.info("Finished: Monthly payment reminder PUSH job completed.");
+        return null; // Indicate successful completion
+    }); // End of onSchedule
 
-  // Build parameter string, excluding empty/undefined/null values
-  for (const key of orderedKeys) {
-    if (data[key] !== '' && data[key] !== undefined && data[key] !== null) {
-      pfOutput += `${key}=${encodeURIComponent(data[key]).replace(/%20/g, '+')}&`;
-    }
-  }
-  // Remove trailing ampersand
-  pfOutput = pfOutput.slice(0, -1);
-
-  // Append passphrase if provided
-  if (passPhrase) {
-    pfOutput += `&passphrase=${encodeURIComponent(passPhrase)}`;
-  }
-
-  console.log('Signature string:', pfOutput);
-  return crypto.createHash('md5').update(pfOutput).digest('hex');
-}
-
-// Helper function to convert data to URL-encoded string
-function dataToString(data) {
-  let pfOutput = '';
-  const orderedKeys = Object.keys(data).sort();
-  for (const key of orderedKeys) {
-    if (data[key] !== '' && data[key] !== undefined && data[key] !== null) {
-      pfOutput += `${key}=${encodeURIComponent(data[key]).replace(/%20/g, '+')}&`;
-    }
-  }
-  return pfOutput.slice(0, -1);
-}
+// You can add other Cloud Functions below this line if needed

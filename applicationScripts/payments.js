@@ -572,7 +572,9 @@ async function checkIfAllPaymentsCompleted(applicationId, paymentPlan) {
             console.log('Payments object:', payments);
             
             const monthsCount = paymentPlan === 'sixMonths' ? 6 : 10;
-            const monthNames = getMonthNames(monthsCount);
+            // *** FIXED *** Use paymentStartDate from data to generate the *correct* list of months
+            const startDate = data.paymentStartDate ? new Date(data.paymentStartDate) : new Date();
+            const monthNames = getMonthNames(monthsCount, startDate);
             
             const allPaid = monthNames.every(month => {
                 const monthKey = month.toLowerCase().replace(/ /g, '_');
@@ -592,8 +594,9 @@ async function checkIfAllPaymentsCompleted(applicationId, paymentPlan) {
 }
 
 // Get month names for payment plan
-function getMonthNames(monthsCount) {
-    const currentDate = new Date();
+// *** MODIFIED *** to accept a startDate
+function getMonthNames(monthsCount, startDate = new Date()) {
+    const currentDate = startDate; // Use the provided start date
     const monthNames = [];
     
     for (let i = 0; i < monthsCount; i++) {
@@ -818,6 +821,11 @@ export async function savePaymentPlan(applicationId, paymentPlan) {
     const appRef = window.firebaseDoc(window.firebaseDb, 'applications', applicationId);
     await window.firebaseSetDoc(appRef, {
         paymentPlan: paymentPlan,
+        // *** MODIFIED ***: Already fixed in main.js, but ensure it's here too if called from somewhere else
+        // This function is also exported from main.js, causing potential conflict.
+        // The one in main.js is the one being called by the dropdown, so that's the primary fix.
+        // We'll add it here for safety, though it's redundant if main.js is fixed.
+        paymentStartDate: new Date().toISOString(), 
         updatedAt: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : new Date()
     }, { merge: true });
     
@@ -873,8 +881,9 @@ export function generateMonthlyPayments(applicationData, paymentPlan) {
     const monthlyCalculation = calculateMonthlyAmount(subjectCount, paymentPlan);
     const monthsCount = paymentPlan === 'sixMonths' ? 6 : 10;
 
-    // Get month names starting from current month
-    const monthNames = getMonthNames(monthsCount);
+    // *** FIXED *** Get month names starting from the paymentStartDate
+    const startDate = applicationData.paymentStartDate ? new Date(applicationData.paymentStartDate) : new Date();
+    const monthNames = getMonthNames(monthsCount, startDate);
 
     // Create header
     const header = document.createElement('h4');
@@ -1037,8 +1046,7 @@ export function showPaymentPlanConfirmationModal(applicationData, paymentPlan) {
                         <div class="payment-plan-confirmation">
                             <p><strong>Are you sure you want to select the <span id="confirmPlanName">${paymentPlan}</span> payment plan?</strong></p>
                             <div class="plan-details" id="confirmPlanDetails">
-                                <!-- Plan details will be populated here -->
-                            </div>
+                                </div>
                             <p>Once confirmed, you will see a list of monthly payments that you can pay individually.</p>
                             <div class="payment-security">
                                 <i class="fas fa-lock"></i>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Contact Us - Alusani Maths and Science Academy</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <link rel="stylesheet" href="../styling/index.css" />
+    <link rel="stylesheet" href="../styling/contact.css" />
+  </head>
+  <body>
+    <nav class="navbar"></nav>
+
+    <section class="contact-hero">
+      <div class="floating-elements">
+        <div class="floating-element">@</div>
+        <div class="floating-element"><i class="fas fa-envelope"></i></div>
+        <div class="floating-element"><i class="fas fa-phone"></i></div>
+        <div class="floating-element"><i class="fas fa-map-marker-alt"></i></div>
+      </div>
+
+      <div class="hero-content">
+        <h1>Get in <span>Touch</span></h1>
+        <p>
+          We are here to answer your questions about enrollment, programs, and
+          how we can help your child succeed.
+        </p>
+      </div>
+    </section>
+
+    <section class="contact-section">
+      <div class="container">
+        <div class="contact-grid">
+          <div class="contact-info-card">
+            <h2>Contact Information</h2>
+            <p>Reach out to us through any of the following channels:</p>
+            
+            <div class="info-item">
+              <div class="info-icon">
+                <i class="fas fa-map-marker-alt"></i>
+              </div>
+              <div class="info-text">
+                <h3>Our Location</h3>
+                <p>346 Mahosi Street, Tshianangani, Ha-Mashamba, 0942</p>
+              </div>
+            </div>
+
+            <div class="info-item">
+              <div class="info-icon">
+                <i class="fas fa-phone"></i>
+              </div>
+              <div class="info-text">
+                <h3>Phone Number</h3>
+                <p>+27 76 106 3120</p>
+                <p class="sub-text">Mon - Fri, 8am - 5pm</p>
+              </div>
+            </div>
+
+            <div class="info-item">
+              <div class="info-icon">
+                <i class="fas fa-envelope"></i>
+              </div>
+              <div class="info-text">
+                <h3>Email Address</h3>
+                <p>info.alusaniacademy.co.za</p>
+                <p class="sub-text">We reply within 24 hours</p>
+              </div>
+            </div>
+
+            <div class="social-connect">
+              <h3>Follow Us</h3>
+              <div class="social-icons">
+                <a href="#" class="social-link"><i class="fab fa-facebook-f"></i></a>
+                <a href="#" class="social-link"><i class="fab fa-twitter"></i></a>
+                <a href="#" class="social-link"><i class="fab fa-instagram"></i></a>
+                <a href="#" class="social-link"><i class="fab fa-linkedin-in"></i></a>
+              </div>
+            </div>
+          </div>
+
+          <div class="contact-form-card">
+            <h2>Send us a Message</h2>
+            <form id="contactForm">
+              <div class="form-group">
+                <label for="name">Full Name</label>
+                <input type="text" id="name" class="form-control" placeholder="Enter your name" required>
+              </div>
+              
+              <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" class="form-control" placeholder="Enter your email" required>
+              </div>
+
+              <div class="form-group">
+                <label for="subject">Subject</label>
+                <select id="subject" class="form-control" required>
+                  <option value="">Select a topic</option>
+                  <option value="enrollment">Enrollment Enquiry</option>
+                  <option value="programs">Academic Programs</option>
+                  <option value="partnership">Partnership Opportunity</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+
+              <div class="form-group">
+                <label for="message">Message</label>
+                <textarea id="message" class="form-control" rows="5" placeholder="How can we help you?" required></textarea>
+              </div>
+
+              <button type="submit" class="btn btn-primary">Send Message</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="map-section">
+      <div class="container">
+        <h2>Find Us</h2>
+        <div class="map-container">
+          <iframe 
+            src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d4386.908331023229!2d30.1466645!3d-23.239459800000002!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x1ec67f2db050c2b7%3A0x5eb0ce0a70cdfd0b!2sAlusani%20Maths%20and%20Science%20Academy!5e1!3m2!1sen!2sza!4v1764883100649!5m2!1sen!2sza" 
+            width="100%" 
+            height="450" 
+            style="border:0;" 
+            allowfullscreen="" 
+            loading="lazy" 
+            referrerpolicy="no-referrer-when-downgrade">
+          </iframe>
+        </div>
+      </div>
+    </section>
+
+    <footer></footer>
+
+    <script src="../scripts/components.js"></script>
+    <script src="../scripts/script.js"></script>
+    <script>
+        document.getElementById('contactForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const btn = this.querySelector('button');
+            const originalText = btn.innerText;
+            
+            btn.innerText = 'Sending...';
+            btn.disabled = true;
+            
+            // Simulate sending
+            setTimeout(() => {
+                alert('Thank you for contacting Alusani Academy. We will get back to you shortly.');
+                btn.innerText = originalText;
+                btn.disabled = false;
+                this.reset();
+            }, 1500);
+        });
+    </script>
+  </body>
+</html>

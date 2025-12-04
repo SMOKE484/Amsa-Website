@@ -1,18 +1,30 @@
+// database.js
+
 import { elements, dateFormat } from './constants.js';
 import { showToast, withErrorHandling, retryOperation } from './utilities.js';
 import { uploadFile } from './storage.js';
-import { calculateSubjectFees, generateMonthlyPayments } from './payments.js';
-import { showSection } from './ui.js';
+// Import necessary payment functions, including checkAndHidePaymentPlan
+import { calculateSubjectFees, generateMonthlyPayments, checkAndHidePaymentPlan } from './payments.js';
+// Import UI functions, assuming updateDashboardUI is now in ui.js
+import { showSection, updateDashboardUI } from './ui.js';
+// Import the permission request function from main.js
+import { requestNotificationPermissionAndSaveToken } from './main.js';
 
 // Global variable to track the current application listener
 window.currentApplicationListener = null;
 
-// Database operations with enhanced error handling
+// --- Database Operations ---
+
+/**
+ * Saves the initial application data as a draft before application fee payment.
+ * @param {object} formData - The collected form data.
+ * @returns {Promise<boolean>} - True if successful, false otherwise.
+ */
 export async function saveApplicationAsDraft(formData) {
     return await withErrorHandling(async () => {
         const user = window.firebaseAuth.currentUser;
         if (!user) throw new Error('User not authenticated');
-        
+
         const appRef = window.firebaseDoc(window.firebaseDb, 'applications', user.uid);
 
         const draftData = {
@@ -23,463 +35,468 @@ export async function saveApplicationAsDraft(formData) {
             grade: formData.grade,
             school: formData.school,
             subjects: formData.selectedSubjects,
-            status: 'application_pending',
+            status: 'application_pending', // Status before submission/payment
             paymentStatus: 'pending',
             applicationFee: 200.00, // R200 application fee
             subjectCount: formData.selectedSubjects?.length || 0,
-            formData: { ...formData },
+            formData: { ...formData }, // Store a copy of form data excluding sensitive parts
             createdAt: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : new Date(),
             updatedAt: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : new Date()
         };
 
-        // Remove file objects and signatures from formData copy
+        // Remove file objects and signatures from the stored formData copy for security/size
         delete draftData.formData.reportCardFile;
         delete draftData.formData.idDocumentFile;
         delete draftData.formData.parentSignature;
         delete draftData.formData.learnerSignature;
         delete draftData.formData.parentSignaturePledge;
 
+        // Save draft data with merge option to avoid overwriting existing fields if retrying
         await retryOperation(
             () => window.firebaseSetDoc(appRef, draftData, { merge: true }),
-            3,
-            1000
+            3, // Max retries
+            1000 // Delay between retries (ms)
         );
-        
+
         console.log('Application saved as draft pending payment');
         return true;
     }, 'Error saving application draft');
 }
 
+/**
+ * Completes the application submission after successful application fee payment.
+ * Uploads files and updates the application status.
+ * @param {object} formData - The full application form data including file objects.
+ * @returns {Promise<boolean>} - True if successful, false otherwise.
+ */
 export async function completeApplicationSubmission(formData) {
     return await withErrorHandling(async () => {
         const user = window.firebaseAuth.currentUser;
         if (!user) throw new Error('User not authenticated');
-        
+
         const appRef = window.firebaseDoc(window.firebaseDb, 'applications', user.uid);
-        const spinner = elements.applicationSection?.querySelector('.loading-spinner');
+        const spinner = document.querySelector('.loading-spinner'); // Get spinner
 
         try {
-            if (spinner) spinner.style.display = 'block';
-            
-            // Upload files with retry logic
+            if (spinner) spinner.style.display = 'flex'; // Show loading spinner
+
+            // Upload report card and ID document files with retry logic
             let reportCardUrl = '';
             let idDocumentUrl = '';
-            
-            if (formData.reportCardFile) {
+
+            if (formData.reportCardFile instanceof File) {
+                console.log('Uploading report card...');
                 reportCardUrl = await retryOperation(
                     () => uploadFile(formData.reportCardFile, 'reportCard'),
-                    3,
-                    1000
+                    3, 1000
                 );
+                console.log('Report card uploaded:', reportCardUrl);
+            } else {
+                 console.warn('Report card file not found or invalid.');
             }
-            
-            if (formData.idDocumentFile) {
+
+            if (formData.idDocumentFile instanceof File) {
+                console.log('Uploading ID document...');
                 idDocumentUrl = await retryOperation(
                     () => uploadFile(formData.idDocumentFile, 'idDocument'),
-                    3,
-                    1000
+                    3, 1000
                 );
+                 console.log('ID document uploaded:', idDocumentUrl);
+            } else {
+                 console.warn('ID document file not found or invalid.');
             }
 
+            // Prepare final application data for Firestore
             const applicationData = {
-                ...formData,
-                reportCardUrl,
-                idDocumentUrl,
-                status: 'submitted',
+                ...formData, // Spread the collected form data
+                reportCardUrl: reportCardUrl || '', // Store the URL or empty string
+                idDocumentUrl: idDocumentUrl || '', // Store the URL or empty string
+                status: 'submitted', // Set status to submitted
                 submittedAt: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : new Date(),
-                paymentStatus: 'application_paid' // Application fee paid, subject fees pending
+                paymentStatus: 'application_paid', // Mark application fee as paid
+                updatedAt: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : new Date()
             };
 
-            // Remove file objects before saving to Firestore
+            // Remove file objects and any large/unnecessary data before saving
             delete applicationData.reportCardFile;
             delete applicationData.idDocumentFile;
+            // Consider removing the full 'formData' copy if not needed after submission
+            // delete applicationData.formData;
 
+            console.log('Saving final application data to Firestore:', applicationData);
+
+            // Save the complete application data (overwriting draft/previous state)
             await retryOperation(
-                () => window.firebaseSetDoc(appRef, applicationData),
-                3,
-                1000
+                () => window.firebaseSetDoc(appRef, applicationData), // Use setDoc without merge to ensure clean state
+                3, 1000
             );
-            
-            // Show dashboard instead of simple status
-            showDashboardSection();
-            
+
+            console.log('Application submitted successfully in Firestore.');
+
+            // Transition UI to the dashboard section
+            showDashboardSection(); // Show the main dashboard view
             showToast('Application submitted successfully!', 'success');
             return true;
-            
+
         } finally {
-            if (spinner) spinner.style.display = 'none';
+            if (spinner) spinner.style.display = 'none'; // Hide loading spinner
         }
     }, 'Error completing application submission');
 }
 
+/**
+ * Updates only the payment status field of an application document.
+ * @param {string} applicationId - The user ID (document ID).
+ * @param {string} status - The new payment status (e.g., 'application_paid', 'fully_paid').
+ * @returns {Promise<boolean>} - True if successful, false otherwise.
+ */
 export async function updateApplicationPaymentStatus(applicationId, status) {
     return await withErrorHandling(async () => {
         const appRef = window.firebaseDoc(window.firebaseDb, 'applications', applicationId);
-        
+
         await retryOperation(
-            () => window.firebaseSetDoc(appRef, {
+            () => window.firebaseSetDoc(appRef, { // Use setDoc with merge: true or updateDoc
                 paymentStatus: status,
                 updatedAt: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : new Date()
             }, { merge: true }),
-            3,
-            1000
+            3, 1000
         );
-        
-        console.log(`Payment status updated to: ${status}`);
+
+        console.log(`Payment status updated to: ${status} for application ${applicationId}`);
         return true;
     }, 'Error updating payment status');
 }
 
-// Add real-time listener for application updates
+// --- Real-time Listener Setup ---
+
+/**
+ * Sets up a real-time Firestore listener for a specific application document.
+ * @param {string} userId - The user ID (document ID) to listen to.
+ * @param {function} callback - Function to call with the updated data when changes occur.
+ * @returns {function | null} - The unsubscribe function, or null if setup failed.
+ */
 export function setupApplicationListener(userId, callback) {
-    return withErrorHandling(() => {
+    // Note: withErrorHandling might interfere with returning the unsubscribe function.
+    // Handle errors directly within this function for listener setup.
+    try {
         if (!window.firebaseOnSnapshot) {
             throw new Error('Firebase onSnapshot function not available');
         }
-        
+        if (!userId) {
+            throw new Error('User ID is required to set up listener');
+        }
+        if (typeof callback !== 'function') {
+            throw new Error('Callback function is required');
+        }
+
         const appRef = window.firebaseDoc(window.firebaseDb, 'applications', userId);
-        
-        // Set up real-time listener
+        console.log(`Setting up real-time listener for application: ${userId}`);
+
+        // Set up the real-time listener
         const unsubscribe = window.firebaseOnSnapshot(appRef, (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                console.log('Real-time update received:', data);
-                callback(data);
+                console.log(`Real-time update received for ${userId}:`, data);
+                callback(data); // Pass the updated data to the callback function
+            } else {
+                // Document might have been deleted, or listener attached before creation
+                console.warn(`Listener active, but document ${userId} does not exist.`);
+                // You might want to call the callback with null or handle this case specifically
+                // callback(null);
             }
         }, (error) => {
-            console.error('Real-time listener error:', error);
-            showToast('Error receiving updates. Please refresh the page.', 'error');
+            // Handle listener errors (e.g., permissions)
+            console.error(`Real-time listener error for ${userId}:`, error);
+            showToast('Error receiving application updates. Please refresh.', 'error');
+            // Consider cleaning up the listener here if the error is permanent
+            cleanupApplicationListener();
         });
-        
-        return unsubscribe;
-    }, 'Error setting up application listener');
-}
 
-// Clean up existing listener
-function cleanupApplicationListener() {
-    if (window.currentApplicationListener && typeof window.currentApplicationListener === 'function') {
-        window.currentApplicationListener();
-        window.currentApplicationListener = null;
-        console.log('Previous application listener cleaned up');
+        return unsubscribe; // Return the function to stop listening
+
+    } catch (error) {
+        console.error('Error setting up application listener:', error);
+        showToast('Failed to set up real-time updates.', 'error');
+        return null; // Return null on setup failure
     }
 }
 
-// Enhanced dashboard data loading with real-time updates
+/**
+ * Cleans up (unsubscribes) the currently active application listener, if any.
+ */
+function cleanupApplicationListener() {
+    if (window.currentApplicationListener && typeof window.currentApplicationListener === 'function') {
+        try {
+            window.currentApplicationListener(); // Call the unsubscribe function
+            window.currentApplicationListener = null;
+            console.log('Previous application listener cleaned up successfully.');
+        } catch (error) {
+            console.error('Error cleaning up application listener:', error);
+        }
+    } else {
+         // console.log('No active application listener to clean up.');
+    }
+}
+
+// --- Dashboard and Status Check ---
+
+/**
+ * Loads the application data for the dashboard, updates the UI,
+ * requests notification permission, and sets up a real-time listener.
+ * @param {string} userId - The user ID (document ID).
+ * @param {boolean} [enableRealtime=true] - Whether to attach a real-time listener.
+ * @returns {Promise<object|null>} - The application data or null if not found/error.
+ */
 export async function loadDashboardData(userId, enableRealtime = true) {
     return await withErrorHandling(async () => {
         const appRef = window.firebaseDoc(window.firebaseDb, 'applications', userId);
+        console.log(`Loading dashboard data for ${userId}...`);
         const docSnap = await retryOperation(
             () => window.firebaseGetDoc(appRef),
-            3,
-            1000
+            3, 1000
         );
-        
+
         if (docSnap.exists()) {
             const data = docSnap.data();
+            data.id = userId; // Ensure the document ID is part of the data object
+
+            console.log('Dashboard data fetched:', data);
+
+            // 1. Update the dashboard UI with the fetched data
             updateDashboardUI(data);
-            
-            // Set up real-time listener if enabled
+
+            // 2. Request notification permission (will check status internally)
+            console.log('Attempting to request notification permission...');
+            // Ensure the function exists before calling
+            if (typeof requestNotificationPermissionAndSaveToken === 'function') {
+                await requestNotificationPermissionAndSaveToken();
+            } else {
+                console.error('requestNotificationPermissionAndSaveToken function not found/imported correctly.');
+            }
+
+            // 3. Check and potentially hide payment plan selector based on current data
+            // Ensure the function exists before calling
+            if (typeof checkAndHidePaymentPlan === 'function') {
+                 checkAndHidePaymentPlan(data);
+            } else {
+                 console.error('checkAndHidePaymentPlan function not found/imported correctly.');
+            }
+
+
+            // 4. Set up real-time listener if enabled
             if (enableRealtime && window.firebaseOnSnapshot) {
-                // Clean up any existing listener first
-                cleanupApplicationListener();
-                
+                cleanupApplicationListener(); // Ensure only one listener is active
+
                 const unsubscribe = setupApplicationListener(userId, (updatedData) => {
-                    console.log('Application data updated:', updatedData);
-                    updateDashboardUI(updatedData);
-                    
-                    // Show notification for status changes
-                    if (updatedData.status !== data.status) {
+                    console.log('Real-time update received for dashboard:', updatedData);
+                    // Merge new data with existing, ensuring ID stays
+                    const mergedData = { ...data, ...updatedData, id: userId };
+
+                    // Re-update UI with the latest merged data
+                    updateDashboardUI(mergedData);
+                    // Re-check payment plan visibility
+                     if (typeof checkAndHidePaymentPlan === 'function') {
+                         checkAndHidePaymentPlan(mergedData);
+                     }
+
+                    // Optional: Show a toast notification only for status changes
+                    if (updatedData.status && data.status && updatedData.status !== data.status) {
                         const statusText = getStatusText(updatedData.status);
                         showToast(`Application status updated: ${statusText}`, 'info');
                     }
                 });
-                
-                // Store unsubscribe function for cleanup
+
+                // Store the unsubscribe function globally for potential cleanup later
                 window.currentApplicationListener = unsubscribe;
             }
-            
-            return data;
+
+            return data; // Return the initially loaded data
+
+        } else {
+            // No application document found for this user
+            console.warn(`No application data found for user ${userId} in loadDashboardData.`);
+            showToast('Application data not found. Please start a new application.', 'info');
+            // Transition UI back to the start
+            showSection('application');
+            if (elements.startApplicationBtn) {
+                 elements.startApplicationBtn.style.display = 'inline-flex';
+            }
+            if (elements.dashboardSection) {
+                 elements.dashboardSection.style.display = 'none';
+            }
+            return null;
         }
-        return null;
     }, 'Error loading dashboard data');
 }
 
-// Helper function for status text
-function getStatusText(status) {
-    const statusMap = {
-        'submitted': 'Submitted',
-        'under-review': 'Under Review',
-        'approved': 'Approved',
-        'rejected': 'Rejected'
-    };
-    return statusMap[status] || status;
-}
-
+/**
+ * Checks if an application exists for the current user and loads the dashboard or shows the form.
+ * @param {object} user - The authenticated Firebase user object.
+ * @returns {Promise<object|null>} - The application data or null if none exists/error.
+ */
 export async function checkApplicationStatus(user) {
     return await withErrorHandling(async () => {
+        if (!user || !user.uid) {
+            throw new Error('User object is invalid.');
+        }
         const appRef = window.firebaseDoc(window.firebaseDb, 'applications', user.uid);
+        console.log(`Checking application status for user ${user.uid}...`);
         const docSnap = await retryOperation(
             () => window.firebaseGetDoc(appRef),
-            3,
-            1000
+            3, 1000
         );
-        
+
         if (docSnap.exists()) {
-            const data = docSnap.data();
-            elements.startApplicationBtn.style.display = 'none';
-            
-            if (data.paymentStatus === 'application_paid' || data.paymentStatus === 'fully_paid') {
-                showDashboardSection();
-                // Enable real-time updates
-                await loadDashboardData(user.uid, true);
-                
-                // Also update the simple status section for backward compatibility
-                if (elements.currentAppStatus) elements.currentAppStatus.textContent = data.status || 'submitted';
-                if (elements.submittedDate && data.submittedAt?.toDate) {
-                    elements.submittedDate.textContent = data.submittedAt.toDate().toLocaleDateString('en-US', dateFormat);
-                }
-            } else {
-                showSection('application');
-                elements.startApplicationBtn.style.display = 'inline-flex';
+            // Application exists, proceed to load the dashboard
+            console.log(`Application found for user ${user.uid}. Loading dashboard...`);
+            if (elements.startApplicationBtn) elements.startApplicationBtn.style.display = 'none';
+            showDashboardSection(); // Make dashboard visible
+
+            // Load data, update UI, request permission, set up listener
+            const loadedData = await loadDashboardData(user.uid, true);
+
+            // Also update the simpler status section elements if they exist
+            // (might be redundant if dashboard loads correctly)
+            const data = docSnap.data(); // Use initially fetched data for this part
+            if (elements.currentAppStatus) elements.currentAppStatus.textContent = data.status || 'submitted';
+            if (elements.submittedDate && data.submittedAt?.toDate) {
+                elements.submittedDate.textContent = data.submittedAt.toDate().toLocaleDateString('en-US', dateFormat);
             }
-            
-            return data;
+
+            return loadedData; // Return the data loaded by loadDashboardData
+
         } else {
-            elements.startApplicationBtn.style.display = 'inline-flex';
-            showSection('application');
+            // No application exists for this user
+            console.log(`No application found for user ${user.uid}. Showing application form.`);
+            if (elements.startApplicationBtn) elements.startApplicationBtn.style.display = 'inline-flex';
+            if (elements.dashboardSection) elements.dashboardSection.style.display = 'none'; // Ensure dashboard is hidden
+            showSection('application'); // Show the application form section
             return null;
         }
     }, 'Error checking application status');
 }
 
-// Enhanced payment return handler
+// --- Payment Handling ---
+
+/**
+ * Handles the return from the Paystack payment gateway.
+ * Updates application status based on payment success/failure.
+ * @returns {Promise<object|null>} - Object with payment details or null on error.
+ */
 export async function handlePaymentReturn() {
     return await withErrorHandling(async () => {
         const urlParams = new URLSearchParams(window.location.search);
-        const paymentStatus = urlParams.get('payment_status');
-        const applicationId = urlParams.get('application_id');
-        const reference = urlParams.get('reference');
-        
-        if (paymentStatus && applicationId) {
-            try {
-                if (paymentStatus === 'success' || paymentStatus === 'COMPLETE') {
-                    // Update application status to paid
-                    await updateApplicationPaymentStatus(applicationId, 'application_paid');
-                    
-                    showToast('Payment successful! Your application has been submitted.', 'success');
-                    
-                    // Clean URL
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                    
-                    // Redirect to dashboard
-                    setTimeout(() => {
-                        if (window.loadDashboardData) {
-                            window.loadDashboardData(applicationId);
-                        }
-                    }, 2000);
-                    
-                } else if (paymentStatus === 'CANCELLED') {
-                    showToast('Payment was cancelled. You can complete payment later.', 'info');
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                }
-            } catch (error) {
-                console.error('Error processing payment return:', error);
-                showToast('Payment completed but there was an error updating your application. Please contact support.', 'warning');
-            }
+        const paymentStatus = urlParams.get('payment_status'); // Check common query params
+        const transactionStatus = urlParams.get('status'); // Paystack might use 'status'
+        const reference = urlParams.get('reference') || urlParams.get('trxref'); // Paystack uses trxref sometimes
+
+        // Determine success based on possible parameters
+        const isSuccess = paymentStatus === 'success' || paymentStatus === 'COMPLETE' || transactionStatus === 'success';
+        const isCancelled = paymentStatus === 'CANCELLED' || transactionStatus === 'cancelled';
+
+        // Extract application ID from metadata if possible, or ref if structured
+        let applicationId = urlParams.get('application_id'); // Try direct param first
+        if (!applicationId && reference && reference.includes('_')) {
+             // Attempt to parse from reference if it follows a pattern like TYPE_ID_TIMESTAMP
+             const parts = reference.split('_');
+             if (parts.length >= 2 && (parts[0] === 'APPLICATION' || parts[0] === 'TUITION')) {
+                 applicationId = parts[1]; // Assume second part is the ID
+             }
         }
-        
-        return { paymentStatus, applicationId, reference };
+
+        console.log('Handling payment return:', { paymentStatus, transactionStatus, reference, applicationId, isSuccess, isCancelled });
+
+        if (applicationId && (isSuccess || isCancelled)) {
+            // Clean the URL parameters immediately
+            window.history.replaceState({}, document.title, window.location.pathname);
+
+            if (isSuccess) {
+                try {
+                    // Update application status to 'application_paid' (assuming this is application fee)
+                    // More complex logic might be needed if handling tuition fees here too
+                    await updateApplicationPaymentStatus(applicationId, 'application_paid');
+                    showToast('Payment successful! Your application is being submitted.', 'success');
+
+                    // Allow time for Firestore update to propagate before loading dashboard
+                    setTimeout(() => {
+                        const user = window.firebaseAuth.currentUser;
+                        if (user && user.uid === applicationId) {
+                            showDashboardSection(); // Show dashboard
+                            loadDashboardData(applicationId, true); // Load data for the dashboard
+                        } else {
+                             console.warn('User mismatch or not logged in after payment return.');
+                             // Maybe redirect to login or show a generic success message
+                             showSection('status'); // Show generic status page
+                        }
+                    }, 1500); // Delay slightly
+
+                } catch (error) {
+                    console.error('Error processing successful payment return:', error);
+                    showToast('Payment confirmed, but error updating application. Contact support.', 'warning');
+                     // Still try to load dashboard or show status
+                     setTimeout(() => showSection('status'), 1500);
+                }
+            } else if (isCancelled) {
+                showToast('Payment was cancelled. You can complete payment later.', 'info');
+                // Potentially redirect back to the application form or show a specific message
+                 setTimeout(() => showSection('application'), 1500);
+            }
+        } else if (reference) {
+             // Clean URL even if we couldn't process fully
+             window.history.replaceState({}, document.title, window.location.pathname);
+             console.log('Payment return detected, but could not extract necessary info or status was inconclusive.');
+        }
+
+        return { paymentStatus, transactionStatus, reference, applicationId }; // Return extracted info
     }, 'Error handling payment return');
 }
 
-// Enhanced UI update with better error handling
-function updateDashboardUI(data) {
-    try {
-        // Update status tab
-        if (data.submittedAt) {
-            const applicationDate = document.getElementById('applicationDate');
-            if (applicationDate) {
-                applicationDate.textContent = data.submittedAt.toDate ? 
-                    data.submittedAt.toDate().toLocaleDateString() : 'Recently';
-            }
-        }
-        
-        // Update subjects summary
-        const subjectCount = data.selectedSubjects?.length || 0;
-        const subjectsSummary = document.getElementById('subjectsSummary');
-        if (subjectsSummary) {
-            subjectsSummary.textContent = `${subjectCount} ${subjectCount === 1 ? 'subject' : 'subjects'}`;
-        }
-        
-        // Update payment status with enhanced visual feedback
-        updatePaymentStatusUI(data);
-        
-        // Update payment plan
-        if (data.paymentPlan) {
-            const paymentPlanSummary = document.getElementById('paymentPlanSummary');
-            if (paymentPlanSummary) {
-                const planDisplay = {
-                    'upfront': 'Upfront Payment',
-                    'sixMonths': '6 Months Installment',
-                    'tenMonths': '10 Months Installment'
-                };
-                paymentPlanSummary.textContent = planDisplay[data.paymentPlan] || data.paymentPlan;
-            }
-            
-            // If payment plan is selected, show monthly payments and hide payment cards
-            updatePaymentDisplay(data);
-        }
-        
-        // Update payments tab
-        updatePaymentOptions(data);
-        
-    } catch (error) {
-        console.error('Error updating dashboard UI:', error);
-        showToast('Error updating dashboard display', 'error');
-    }
+
+// --- Helper Functions ---
+
+/**
+ * Gets a display-friendly text for a status code.
+ * @param {string} status - The status code (e.g., 'submitted', 'under-review').
+ * @returns {string} - The display text.
+ */
+function getStatusText(status) {
+    const statusMap = {
+        'application_pending': 'Draft (Payment Pending)',
+        'submitted': 'Submitted',
+        'under-review': 'Under Review',
+        'approved': 'Approved',
+        'rejected': 'Rejected',
+        // Add more statuses as needed
+    };
+    return statusMap[status] || status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()); // Default formatting
 }
 
-// Enhanced payment status update
-function updatePaymentStatusUI(data) {
-    const tuitionFeeStatus = document.getElementById('tuitionFeeStatus');
-    const tuitionFeeBadge = document.getElementById('tuitionFeeBadge');
-    const overallStatusBadge = document.getElementById('overallStatusBadge');
-    
-    // Update tuition fee status
-    if (data.paymentStatus === 'fully_paid') {
-        if (tuitionFeeStatus) {
-            tuitionFeeStatus.textContent = 'Paid';
-            tuitionFeeStatus.className = 'status-paid';
-        }
-        if (tuitionFeeBadge) {
-            tuitionFeeBadge.textContent = 'Paid';
-            tuitionFeeBadge.className = 'fee-status paid';
-        }
-    } else {
-        if (tuitionFeeStatus) {
-            tuitionFeeStatus.textContent = 'Pending';
-            tuitionFeeStatus.className = 'status-pending';
-        }
-        if (tuitionFeeBadge) {
-            tuitionFeeBadge.textContent = 'Pending';
-            tuitionFeeBadge.className = 'fee-status pending';
-        }
-    }
-    
-    // Update overall status badge
-    if (overallStatusBadge) {
-        if (data.paymentStatus === 'application_paid') {
-            overallStatusBadge.textContent = 'Under Review';
-            overallStatusBadge.className = 'status-badge approved';
-        } else if (data.paymentStatus === 'fully_paid') {
-            overallStatusBadge.textContent = 'Complete';
-            overallStatusBadge.className = 'status-badge completed';
-        } else {
-            overallStatusBadge.textContent = 'Pending Payment';
-            overallStatusBadge.className = 'status-badge pending';
-        }
-    }
-}
-
-// Enhanced payment display management
-function updatePaymentDisplay(data) {
-    const paymentCards = document.querySelector('.payment-cards');
-    const monthlyPayments = document.getElementById('monthlyPayments');
-    const paymentPlan = data.paymentPlan;
-    
-    if (paymentCards && monthlyPayments) {
-        if (paymentPlan === 'upfront') {
-            // Hide all payment cards and monthly payments for upfront (already paid)
-            paymentCards.style.display = 'none';
-            monthlyPayments.style.display = 'none';
-            
-            // Also hide the payment options section entirely
-            const paymentOptions = document.querySelector('.payment-options');
-            if (paymentOptions) {
-                paymentOptions.style.display = 'none';
-            }
-        } else if (paymentPlan === 'sixMonths' || paymentPlan === 'tenMonths') {
-            // Hide payment cards and show monthly payments for installment plans
-            paymentCards.style.display = 'none';
-            monthlyPayments.style.display = 'block';
-            
-            // Generate monthly payment buttons
-            if (window.generateMonthlyPayments) {
-                window.generateMonthlyPayments(data, paymentPlan);
-            }
-        } else {
-            // Show payment cards if no plan selected
-            paymentCards.style.display = 'grid';
-            monthlyPayments.style.display = 'none';
-        }
-    }
-}
-
-// Enhanced payment options update
-function updatePaymentOptions(data) {
-    const subjectCount = data.selectedSubjects?.length || 0;
-    
-    if (subjectCount > 0 && !data.paymentPlan) {
-        try {
-            const upfrontFee = calculateSubjectFees(subjectCount, 'upfront');
-            const sixMonthsFee = calculateSubjectFees(subjectCount, 'sixMonths');
-            const tenMonthsFee = calculateSubjectFees(subjectCount, 'tenMonths');
-            
-            // Update upfront card
-            const upfrontAmount = document.getElementById('upfrontAmount');
-            const tuitionAmount = document.getElementById('tuitionAmount');
-            if (upfrontAmount) upfrontAmount.textContent = `R${upfrontFee.displayAmount}`;
-            if (tuitionAmount) tuitionAmount.textContent = `R${upfrontFee.displayAmount}`;
-            
-            // Update 6 months card
-            const sixMonthsMonthly = document.getElementById('sixMonthsMonthly');
-            const sixMonthsTotal = document.getElementById('sixMonthsTotal');
-            if (sixMonthsMonthly) {
-                const monthlyAmount = (sixMonthsFee.amount / 6 / 100).toFixed(2);
-                sixMonthsMonthly.textContent = `R${monthlyAmount}/month`;
-            }
-            if (sixMonthsTotal) {
-                sixMonthsTotal.textContent = `R${sixMonthsFee.displayAmount}`;
-            }
-            
-            // Update 10 months card
-            const tenMonthsMonthly = document.getElementById('tenMonthsMonthly');
-            const tenMonthsTotal = document.getElementById('tenMonthsTotal');
-            if (tenMonthsMonthly) {
-                const monthlyAmount = (tenMonthsFee.amount / 10 / 100).toFixed(2);
-                tenMonthsMonthly.textContent = `R${monthlyAmount}/month`;
-            }
-            if (tenMonthsTotal) {
-                tenMonthsTotal.textContent = `R${tenMonthsFee.displayAmount}`;
-            }
-        } catch (error) {
-            console.error('Error updating payment options:', error);
-        }
-    }
-}
-
-// Enhanced dashboard section display
+/**
+ * Shows the main dashboard section and hides others.
+ */
 function showDashboardSection() {
     try {
-        const dashboardSection = document.getElementById('dashboardSection');
-        const applicationSection = document.getElementById('applicationSection');
-        const applicationStatus = document.getElementById('applicationStatus');
-        
-        if (dashboardSection) {
-            dashboardSection.style.display = 'block';
-            if (applicationSection) applicationSection.style.display = 'none';
-            if (applicationStatus) applicationStatus.style.display = 'none';
-        } else {
-            // Fallback to original status section
-            showSection('status');
-        }
+        const dashboard = document.getElementById('dashboardSection');
+        const application = document.getElementById('applicationSection');
+        const status = document.getElementById('applicationStatus'); // Simple status page
+        const existing = document.getElementById('existingApplication');
+
+        if (dashboard) dashboard.style.display = 'block';
+        if (application) application.style.display = 'none';
+        if (status) status.style.display = 'none';
+        if (existing) existing.style.display = 'none';
+
+        console.log('UI switched to Dashboard Section.');
+
     } catch (error) {
         console.error('Error showing dashboard section:', error);
-        showSection('status');
+        // Fallback gracefully
+        showSection('status'); // Show the simple status page as a fallback
     }
 }
 
-// Make functions available globally for other modules
+
+// Make key functions globally available if needed by older parts of the code or HTML event handlers
 window.loadDashboardData = loadDashboardData;
 window.setupApplicationListener = setupApplicationListener;
 window.cleanupApplicationListener = cleanupApplicationListener;

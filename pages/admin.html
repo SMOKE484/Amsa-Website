@@ -11,7 +11,6 @@
 </head>
 <body>
     <div class="admin-container">
-        <!-- Login Section -->
         <section class="login-section" id="loginSection">
             <div class="login-container">
                 <div class="login-header">
@@ -28,7 +27,6 @@
             </div>
         </section>
 
-        <!-- Admin Dashboard -->
         <section class="dashboard-section" id="dashboardSection" style="display:none;">
             <header class="admin-header">
                 <div class="header-content">
@@ -67,7 +65,6 @@
                 </div>
 
                 <div class="main-content">
-                    <!-- Dashboard Overview -->
                     <section class="content-section active" id="dashboardSection">
                         <h2>Application Overview</h2>
                         <div class="stats-grid">
@@ -112,12 +109,10 @@
                         <div class="recent-applications">
                             <h3>Recent Applications</h3>
                             <div class="applications-list" id="recentApplicationsList">
-                                <!-- Will be populated by JavaScript -->
-                            </div>
+                                </div>
                         </div>
                     </section>
 
-                    <!-- Applications Management -->
                     <section class="content-section" id="applicationsSection">
                         <div class="section-header">
                             <h2>Application Management</h2>
@@ -162,8 +157,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="applicationsTableBody">
-                                    <!-- Will be populated by JavaScript -->
-                                </tbody>
+                                    </tbody>
                             </table>
                         </div>
 
@@ -178,7 +172,6 @@
                         </div>
                     </section>
 
-                    <!-- Payment Tracking Section -->
                     <section class="content-section" id="paymentsSection">
                         <div class="section-header">
                             <h2>Payment Tracking</h2>
@@ -215,8 +208,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="paymentsTableBody">
-                                    <!-- Will be populated by JavaScript -->
-                                </tbody>
+                                    </tbody>
                             </table>
                         </div>
 
@@ -241,7 +233,6 @@
                         </div>
                     </section>
 
-                    <!-- Application Detail View -->
                     <section class="content-section" id="applicationDetailSection">
                         <div class="detail-header">
                             <button class="btn btn-outline" id="backToListBtn">
@@ -322,8 +313,7 @@
                             <div class="detail-card">
                                 <h3>Subjects</h3>
                                 <div id="detailSubjects" class="subjects-list">
-                                    <!-- Will be populated by JavaScript -->
-                                </div>
+                                    </div>
                             </div>
 
                             <div class="detail-card">
@@ -369,22 +359,51 @@
                             </div>
 
                             <div class="detail-card">
-                                <h3>Payment History</h3>
-                                <div id="paymentHistory" class="payment-history-list">
-                                    <!-- Will be populated by JavaScript -->
+                                <div class="collapsible-header collapsed" data-target="paymentHistoryContent">
+                                    <h3>Payment History</h3>
+                                    <i class="fas fa-chevron-down collapse-icon"></i>
+                                </div>
+                                <div class="collapsible-content" id="paymentHistoryContent">
+                                    <div class="payment-history-header">
+                                        <div class="payment-summary-info">
+                                            <div class="payment-summary-item">
+                                                <span>Total Due:</span>
+                                                <strong id="paymentTotalDue">R0.00</strong>
+                                            </div>
+                                            <div class="payment-summary-item">
+                                                <span>Total Paid:</span>
+                                                <strong id="paymentTotalPaid" style="color: var(--success);">R0.00</strong>
+                                            </div>
+                                            <div class="payment-summary-item">
+                                                <span>Remaining Balance:</span>
+                                                <strong id="paymentRemainingBalance" style="color: var(--danger);">R0.00</strong>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div id="paymentHistory" class="payment-history-list">
+                                        </div>
+                                </div>
+                            </div>
+
+                            <div class="detail-card" id="monthlyPaymentScheduleCard" style="display: none;">
+                                <div class="collapsible-header collapsed" data-target="monthlyPaymentScheduleContent">
+                                    <h3>Monthly Payment Schedule</h3>
+                                    <i class="fas fa-chevron-down collapse-icon"></i>
+                                </div>
+                                <div class="collapsible-content" id="monthlyPaymentScheduleContent">
+                                    <div class="monthly-payment-grid" id="monthlyPaymentGrid">
+                                        </div>
                                 </div>
                             </div>
 
                             <div class="detail-card">
                                 <h3>Application Status History</h3>
                                 <div id="statusHistory" class="status-history">
-                                    <!-- Will be populated by JavaScript -->
-                                </div>
+                                    </div>
                             </div>
                         </div>
                     </section>
 
-                    <!-- Analytics Section -->
                     <section class="content-section" id="analyticsSection">
                         <h2>Application Analytics</h2>
                         <div class="analytics-grid">
@@ -411,7 +430,50 @@
         </section>
     </div>
 
-    <!-- Firebase SDKs -->
+    <div id="paymentDetailModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Payment Details</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="payment-detail-info">
+                    <div class="detail-row">
+                        <label>Student:</label>
+                        <span id="modalStudentName">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <label>Payment For:</label>
+                        <span id="modalPaymentFor">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <label>Amount:</label>
+                        <span id="modalPaymentAmount">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <label>Date Paid:</label>
+                        <span id="modalPaymentDate">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <label>Payment Method:</label>
+                        <span id="modalPaymentMethod">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <label>Reference:</label>
+                        <span id="modalPaymentReference">-</span>
+                    </div>
+                    <div class="detail-row">
+                        <label>Status:</label>
+                        <span id="modalPaymentStatus">-</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="closePaymentModal">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -426,7 +488,8 @@
             where, 
             orderBy,
             serverTimestamp,
-            arrayUnion
+            arrayUnion,
+            onSnapshot
         } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -459,7 +522,8 @@
             where, 
             orderBy,
             serverTimestamp,
-            arrayUnion
+            arrayUnion,
+            onSnapshot
         };
     </script>
     <script src="../scripts/admin.js"></script>
