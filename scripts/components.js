@@ -34,7 +34,7 @@ class UIComponents {
                     <a href="${this.pathPrefix}pages/programs.html" class="nav-link" data-page="programs">Programs</a>
                     <a href="${this.pathPrefix}pages/about.html" class="nav-link" data-page="about">About</a>
                     <a href="${this.pathPrefix}pages/gallery.html" class="nav-link" data-page="gallery">Gallery</a>
-                    <a href="#" class="nav-link" data-page="contact">Contact</a>
+                    <a href="${this.pathPrefix}pages/contact.html" class="nav-link" data-page="contact">Contact</a>
                     <a href="${this.pathPrefix}pages/portal.html" class="nav-link" data-page="portal">Portal</a>
                     <a href="${this.pathPrefix}pages/applications.html" class="nav-link btn-enroll">Enroll Now</a>
                 </div>
