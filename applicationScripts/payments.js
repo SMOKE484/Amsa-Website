@@ -328,17 +328,13 @@ async function handlePaystackCallback(response, applicationData, paymentType) {
     }
 }
 
-// Payment verification function
 async function verifyPaystackPayment(reference) {
+
     try {
-        // In a real implementation, this would call your backend
-        // For now, we'll simulate verification
-        console.log('Verifying payment reference:', reference);
-        
-        // Simulate API call delay
+        console.log('Simulating payment verification for:', reference);
+    
         await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // For demo purposes, assume payment is verified if reference exists
+
         return !!reference;
         
     } catch (error) {

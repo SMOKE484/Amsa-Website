@@ -957,26 +957,27 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function calculateAmountPaid(app, totalAmount) {
-        if (app.paymentStatus === PAYMENT_STATUS.FULLY_PAID) {
-            return totalAmount;
-        }
 
-        let amountPaid = 0;
-
-        if (app.paymentStatus === PAYMENT_STATUS.APPLICATION_PAID || app.paymentStatus === PAYMENT_STATUS.FULLY_PAID) {
-            amountPaid = 200;
-        }
-
-        if (app.payments) {
-            Object.values(app.payments).forEach(payment => {
-                if (payment.paid && payment.amount) {
-                    amountPaid += payment.amount;
-                }
-            });
-        }
-        
-        return amountPaid;
+    if (app.paymentStatus === PAYMENT_STATUS.FULLY_PAID) {
+        return totalAmount;
     }
+
+    let amountPaid = 0;
+
+
+    if (app.payments) {
+        Object.values(app.payments).forEach(payment => {
+
+            const isAppFee = payment.type === 'application' || payment.description === 'Application Fee';
+            
+            if (payment.paid && payment.amount && !isAppFee) {
+                amountPaid += payment.amount;
+            }
+        });
+    }
+    
+    return amountPaid;
+}
     
     function formatPaymentPlan(plan) {
         const planNames = {
@@ -1117,8 +1118,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
+             
         if (app.paymentPlan === 'upfront' && app.paymentStatus === PAYMENT_STATUS.FULLY_PAID) {
-            const upfrontAmount = totalAmount - 200;
+ 
+            const upfrontAmount = totalAmount; 
+            
             if (upfrontAmount > 0) {
                 const paymentItem = document.createElement('div');
                 paymentItem.className = 'payment-item detailed paid';
@@ -1140,7 +1144,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 paymentHistory.appendChild(paymentItem);
             }
         }
-        
         if (paymentHistory.children.length === 0) {
             const p = document.createElement('p');
             p.className = 'no-data';

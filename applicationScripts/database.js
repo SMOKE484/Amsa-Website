@@ -70,76 +70,100 @@ export async function saveApplicationAsDraft(formData) {
  * @returns {Promise<boolean>} - True if successful, false otherwise.
  */
 export async function completeApplicationSubmission(formData) {
+    // 1. Define UI Elements to Reset
+    const submitBtn = document.querySelector('#pledgeForm .submit-btn');
+    const spinner = document.querySelector('.loading-spinner');
+    const paymentModal = document.getElementById('paystackPaymentModal');
+    const loadingOverlay = document.getElementById('paymentLoading');
+
+    // Helper to Reset UI
+    const resetUI = () => {
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit Application';
+        }
+        if (spinner) spinner.style.display = 'none';
+        if (paymentModal) paymentModal.style.display = 'none';
+        if (loadingOverlay) loadingOverlay.style.display = 'none';
+    };
+
     return await withErrorHandling(async () => {
         const user = window.firebaseAuth.currentUser;
         if (!user) throw new Error('User not authenticated');
 
         const appRef = window.firebaseDoc(window.firebaseDb, 'applications', user.uid);
-        const spinner = document.querySelector('.loading-spinner'); // Get spinner
+        
+        // Visual Feedback: Show spinner
+        if (spinner) spinner.style.display = 'flex';
 
         try {
-            if (spinner) spinner.style.display = 'flex'; // Show loading spinner
-
-            // Upload report card and ID document files with retry logic
+            // --- Upload Files ---
             let reportCardUrl = '';
             let idDocumentUrl = '';
 
-            if (formData.reportCardFile instanceof File) {
+            // Check if file exists and is valid
+            if (formData.reportCardFile && formData.reportCardFile instanceof File) {
                 console.log('Uploading report card...');
                 reportCardUrl = await retryOperation(
                     () => uploadFile(formData.reportCardFile, 'reportCard'),
                     3, 1000
                 );
                 console.log('Report card uploaded:', reportCardUrl);
-            } else {
-                 console.warn('Report card file not found or invalid.');
             }
 
-            if (formData.idDocumentFile instanceof File) {
+            if (formData.idDocumentFile && formData.idDocumentFile instanceof File) {
                 console.log('Uploading ID document...');
                 idDocumentUrl = await retryOperation(
                     () => uploadFile(formData.idDocumentFile, 'idDocument'),
                     3, 1000
                 );
                  console.log('ID document uploaded:', idDocumentUrl);
-            } else {
-                 console.warn('ID document file not found or invalid.');
             }
 
-            // Prepare final application data for Firestore
+            // --- Save Data ---
             const applicationData = {
-                ...formData, // Spread the collected form data
-                reportCardUrl: reportCardUrl || '', // Store the URL or empty string
-                idDocumentUrl: idDocumentUrl || '', // Store the URL or empty string
-                status: 'submitted', // Set status to submitted
+                ...formData, 
+                reportCardUrl: reportCardUrl || '', 
+                idDocumentUrl: idDocumentUrl || '', 
+                status: 'submitted', 
                 submittedAt: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : new Date(),
-                paymentStatus: 'application_paid', // Mark application fee as paid
+                paymentStatus: 'application_paid', 
                 updatedAt: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : new Date()
             };
 
-            // Remove file objects and any large/unnecessary data before saving
+            // Cleanup
             delete applicationData.reportCardFile;
             delete applicationData.idDocumentFile;
-            // Consider removing the full 'formData' copy if not needed after submission
-            // delete applicationData.formData;
 
-            console.log('Saving final application data to Firestore:', applicationData);
+            console.log('Saving to Firestore:', applicationData);
 
-            // Save the complete application data (overwriting draft/previous state)
             await retryOperation(
-                () => window.firebaseSetDoc(appRef, applicationData), // Use setDoc without merge to ensure clean state
+                () => window.firebaseSetDoc(appRef, applicationData), 
                 3, 1000
             );
 
-            console.log('Application submitted successfully in Firestore.');
+            console.log('Submission Successful');
 
-            // Transition UI to the dashboard section
-            showDashboardSection(); // Show the main dashboard view
+            // --- CRITICAL: Reset UI & Redirect ---
+            resetUI(); 
+            
+            // Redirect to Dashboard
+            if (typeof showSection === 'function') {
+                showSection('dashboard'); 
+            } else {
+                 // Fallback if import missing
+                 document.getElementById('pledgeSection').style.display = 'none';
+                 document.getElementById('dashboardSection').style.display = 'block';
+            }
+            
             showToast('Application submitted successfully!', 'success');
             return true;
 
-        } finally {
-            if (spinner) spinner.style.display = 'none'; // Hide loading spinner
+        } catch (error) {
+            // IF ERROR: Reset UI so user can try again!
+            resetUI();
+            console.error("Submission failed:", error);
+            throw error; // Let withErrorHandling show the toast
         }
     }, 'Error completing application submission');
 }

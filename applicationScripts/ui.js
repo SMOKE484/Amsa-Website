@@ -16,9 +16,9 @@ export function showSection(section) {
         elements.consentSection,
         elements.rulesSection,
         elements.pledgeSection,
-        elements.applicationStatus, // Simple status page
+        elements.applicationStatus,
         elements.existingApplication,
-        elements.dashboardSection   // Full dashboard
+        elements.dashboardSection  
     ];
 
     sections.forEach(sec => {
@@ -44,6 +44,7 @@ export function showSection(section) {
 
     // Update progress indicator based on the section
     updateProgressIndicator(section);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 /**
