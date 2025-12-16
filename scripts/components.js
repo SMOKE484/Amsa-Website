@@ -72,7 +72,7 @@ class UIComponents {
                                 </div>
                                 <div class="contact-item">
                                     <i class="fas fa-envelope"></i>
-                                    <span>info.alusaniacademy.co.za</span>
+                                    <span>amsaforthenation@gmail.com</span>
                                 </div>
                                 <div class="contact-item">
                                     <i class="fas fa-phone"></i>
@@ -114,7 +114,7 @@ class UIComponents {
                             <h4>Stay Updated</h4>
                             <p>Subscribe to our newsletter for updates and educational resources</p>
                             <form class="newsletter-form">
-                                <input type="email" placeholder="info.alusaniacademy.co.za" required>
+                                <input type="email" placeholder="amsaforthenation@gmail.com" required>
                                 <button type="submit">Subscribe</button>
                             </form>
                         </div>
