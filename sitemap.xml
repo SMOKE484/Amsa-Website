@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" 
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 
+        http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+  
+  <!-- Home page -->
+  <url>
+    <loc>https://www.alusaniacademy.co.za/</loc>
+    <lastmod>2025-12-17T13:17:54+00:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.00</priority>
+  </url>
+  
+  <!-- About page -->
+  <url>
+    <loc>https://www.alusaniacademy.co.za/pages/about.html</loc>
+    <lastmod>2025-12-17T13:17:54+00:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  
+  <!-- Applications page -->
+  <url>
+    <loc>https://www.alusaniacademy.co.za/pages/applications.html</loc>
+    <lastmod>2025-12-17T13:17:54+00:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  
+  <!-- Contact page -->
+  <url>
+    <loc>https://www.alusaniacademy.co.za/pages/contact.html</loc>
+    <lastmod>2025-12-17T13:17:54+00:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.80</priority>
+  </url>
+  
+  <!-- Gallery page -->
+  <url>
+    <loc>https://www.alusaniacademy.co.za/pages/gallery.html</loc>
+    <lastmod>2025-12-17T13:17:54+00:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.70</priority>
+  </url>
+  
+  <!-- Portal page -->
+  <url>
+    <loc>https://www.alusaniacademy.co.za/pages/portal.html</loc>
+    <lastmod>2025-12-17T13:17:54+00:00</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.90</priority>
+  </url>
+  
+  <!-- Programs page -->
+  <url>
+    <loc>https://www.alusaniacademy.co.za/pages/programs.html</loc>
+    <lastmod>2025-12-17T13:17:54+00:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.85</priority>
+  </url>
+</urlset>
