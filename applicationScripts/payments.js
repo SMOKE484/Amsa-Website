@@ -114,7 +114,7 @@ export async function initiatePaystackPayment(applicationData, paymentType = 'ap
         }
 
         // Paystack TEST credentials
-        const publicKey = 'pk_test_3bcc9352777bd80432ed77f816f4488025d597c9';
+        const publicKey = 'pk_live_fc691ef3afbc4a51b790b602bbe80bb2510d49e4';
         
         // Calculate payment amount based on payment type
         let amount, itemName, metadata;
@@ -382,7 +382,7 @@ export async function initiateTuitionPayment(applicationData, paymentPlan, month
         }
 
         // Paystack TEST credentials
-        const publicKey = 'pk_test_3bcc9352777bd80432ed77f816f4488025d597c9';
+        const publicKey = 'pk_live_fc691ef3afbc4a51b790b602bbe80bb2510d49e4';
         
         const subjectCount = applicationData.selectedSubjects?.length || 0;
         
