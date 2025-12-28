@@ -278,38 +278,51 @@ async function handlePaystackCallback(response, applicationData, paymentType) {
         // Verify payment was successful
         const paymentVerified = await verifyPaystackPayment(response.reference);
         
+        // --- payments.js ---
+
         if (response.status === 'success' && paymentVerified) {
             if (paymentType === 'application') {
-                // Application fee paid - complete submission
-                showToast('Application fee paid successfully! Submitting your application...', 'success');
+                // Application fee paid
+                showToast('Application fee paid successfully! Finalizing...', 'success');
                 
-                await updateApplicationPaymentStatus(applicationData.id, 'application_paid');
+                // === UPDATED LOGIC START ===
+                // Data is already saved. We just update the status to 'submitted'.
                 
-                // Complete the application submission with the original form data
-                await completeApplicationSubmission(applicationData);
+                const appRef = window.firebaseDoc(window.firebaseDb, 'applications', applicationData.id);
                 
-                // Show dashboard after successful application payment
+                await window.firebaseSetDoc(appRef, {
+                    paymentStatus: 'application_paid',
+                    status: 'submitted', // Change 'initiated' to 'submitted'
+                    updatedAt: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : new Date()
+                }, { merge: true });
+
+                // Show dashboard (using existing logic)
                 setTimeout(() => {
-                    showDashboardSection(applicationData);
+                    // Try to use the exported function if available via window or import
+                    if (typeof showDashboardSection === 'function') {
+                        showDashboardSection(applicationData);
+                    } else if (window.loadDashboardData) {
+                         // Fallback: manually show section and load data
+                         document.getElementById('dashboardSection').style.display = 'block';
+                         document.getElementById('applicationSection').style.display = 'none';
+                         window.loadDashboardData(applicationData.id, true);
+                    }
                 }, 2000);
+                // === UPDATED LOGIC END ===
                 
             } else {
-                // Subject fees paid
+                // Subject fees logic (Leave this exactly as it is)
                 showToast('Subject fees paid successfully! Your enrollment is complete.', 'success');
-                
                 await updateApplicationPaymentStatus(applicationData.id, 'fully_paid');
-                
-                // Redirect to success page
                 setTimeout(() => {
                     window.location.href = '/applications.html?payment=success&reference=' + response.reference;
                 }, 2000);
             }
             
-            // Reset payment state on success
             paymentState.isProcessing = false;
             paymentState.retryCount = 0;
-            
-        } else {
+        }
+            else {
             // Payment failed or not verified
             showToast('Payment verification failed. Please try again.', 'error');
             paymentState.isProcessing = false;

@@ -168,6 +168,66 @@ export async function completeApplicationSubmission(formData) {
     }, 'Error completing application submission');
 }
 
+
+/**
+ * NEW: Saves the application and uploads files BEFORE payment begins.
+ * This prevents the "Race Condition" where data is lost if the browser closes.
+ */
+export async function preSaveApplication(formData) {
+    return await withErrorHandling(async () => {
+        const user = window.firebaseAuth.currentUser;
+        if (!user) throw new Error('User not authenticated');
+
+        const appRef = window.firebaseDoc(window.firebaseDb, 'applications', user.uid);
+
+        // 1. Upload Files FIRST using your existing uploadFile logic
+        let reportCardUrl = '';
+        let idDocumentUrl = '';
+
+        if (formData.reportCardFile && formData.reportCardFile instanceof File) {
+            console.log('Pre-uploading report card...');
+            reportCardUrl = await retryOperation(
+                () => uploadFile(formData.reportCardFile, 'reportCard'),
+                3, 1000
+            );
+        }
+
+        if (formData.idDocumentFile && formData.idDocumentFile instanceof File) {
+            console.log('Pre-uploading ID document...');
+            idDocumentUrl = await retryOperation(
+                () => uploadFile(formData.idDocumentFile, 'idDocument'),
+                3, 1000
+            );
+        }
+
+        // 2. Prepare Data (Keep status as 'initiated' so it's not visible as 'submitted' yet)
+        const applicationData = {
+            ...formData,
+            reportCardUrl: reportCardUrl || '',
+            idDocumentUrl: idDocumentUrl || '',
+            userId: user.uid,
+            status: 'initiated',         // Means "Started but not paid"
+            paymentStatus: 'pending',    // Means "Not paid yet"
+            submittedAt: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : new Date(),
+            updatedAt: window.firebaseServerTimestamp ? window.firebaseServerTimestamp() : new Date()
+        };
+
+        // Remove the raw file objects (we only want the URLs in DB)
+        delete applicationData.reportCardFile;
+        delete applicationData.idDocumentFile;
+
+        // 3. Save to Firestore
+        await retryOperation(
+            () => window.firebaseSetDoc(appRef, applicationData, { merge: true }),
+            3, 1000
+        );
+
+        console.log('Application pre-saved successfully.');
+        return applicationData; 
+
+    }, 'Error pre-saving application');
+}
+
 /**
  * Updates only the payment status field of an application document.
  * @param {string} applicationId - The user ID (document ID).
@@ -358,6 +418,7 @@ export async function loadDashboardData(userId, enableRealtime = true) {
  * @param {object} user - The authenticated Firebase user object.
  * @returns {Promise<object|null>} - The application data or null if none exists/error.
  */
+
 export async function checkApplicationStatus(user) {
     return await withErrorHandling(async () => {
         if (!user || !user.uid) {
@@ -365,41 +426,97 @@ export async function checkApplicationStatus(user) {
         }
         const appRef = window.firebaseDoc(window.firebaseDb, 'applications', user.uid);
         console.log(`Checking application status for user ${user.uid}...`);
+        
         const docSnap = await retryOperation(
             () => window.firebaseGetDoc(appRef),
             3, 1000
         );
 
         if (docSnap.exists()) {
-            // Application exists, proceed to load the dashboard
-            console.log(`Application found for user ${user.uid}. Loading dashboard...`);
-            if (elements.startApplicationBtn) elements.startApplicationBtn.style.display = 'none';
-            showDashboardSection(); // Make dashboard visible
+            const data = docSnap.data();
+            data.id = user.uid; // Ensure ID is attached
 
-            // Load data, update UI, request permission, set up listener
-            const loadedData = await loadDashboardData(user.uid, true);
+            // CASE 1: Application started but NOT paid (Initiated)
+            if (data.status === 'initiated' || data.paymentStatus === 'pending') {
+                console.log('Found unpaid application. Showing Resume Payment screen.');
+                
+                // Hide other sections
+                if (elements.startApplicationBtn) elements.startApplicationBtn.style.display = 'none';
+                if (elements.dashboardSection) elements.dashboardSection.style.display = 'none';
+                if (elements.applicationSection) elements.applicationSection.style.display = 'none';
 
-            // Also update the simpler status section elements if they exist
-            // (might be redundant if dashboard loads correctly)
-            const data = docSnap.data(); // Use initially fetched data for this part
-            if (elements.currentAppStatus) elements.currentAppStatus.textContent = data.status || 'submitted';
-            if (elements.submittedDate && data.submittedAt?.toDate) {
-                elements.submittedDate.textContent = data.submittedAt.toDate().toLocaleDateString('en-US', dateFormat);
+                // Show the "Existing Application" section but repurpose it
+                const existingSection = document.getElementById('existingApplication');
+                const cardContent = existingSection.querySelector('.existing-app-card');
+                
+                if (existingSection && cardContent) {
+                    existingSection.style.display = 'block';
+                    
+                    // Inject "Pay Now" UI
+                    cardContent.innerHTML = `
+                        <div class="existing-app-icon" style="color: #f39c12;"><i class="fas fa-wallet"></i></div>
+                        <h3>Application Saved</h3>
+                        <p>We found your application, but the application fee has not been paid yet.</p>
+                        <p><strong>Ref:</strong> ${data.id.substring(0, 8)}...</p>
+                        <div style="margin-top: 20px;">
+                            <button id="resumePaymentBtn" class="btn btn-primary">
+                                <i class="fas fa-credit-card"></i> Pay R200 Application Fee
+                            </button>
+                        </div>
+                    `;
+
+                    // Add Click Listener to the new button
+                    // We use dynamic import to avoid circular dependency issues with payments.js
+                    document.getElementById('resumePaymentBtn').addEventListener('click', async function() {
+                        this.disabled = true;
+                        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+                        
+                        try {
+                            const paymentModule = await import('./payments.js');
+                            // Open the payment modal with the saved data
+                            await paymentModule.showPaystackPaymentModal(data);
+                            
+                            // Reset button if they cancel
+                            this.disabled = false;
+                            this.innerHTML = '<i class="fas fa-credit-card"></i> Pay R200 Application Fee';
+                        } catch (err) {
+                            console.error("Error loading payment module", err);
+                            alert("Could not load payment system. Please refresh.");
+                        }
+                    });
+                }
+                return data;
             }
 
-            return loadedData; // Return the data loaded by loadDashboardData
+            // CASE 2: Application Paid/Submitted (Show Dashboard)
+            console.log(`Application found and paid. Loading dashboard...`);
+            if (elements.startApplicationBtn) elements.startApplicationBtn.style.display = 'none';
+            
+            // Show Dashboard
+            if (typeof showDashboardSection === 'function') {
+                showDashboardSection(data); // Use the UI helper if available
+            } else {
+                // Manual fallback
+                document.getElementById('dashboardSection').style.display = 'block';
+                document.getElementById('existingApplication').style.display = 'none';
+                document.getElementById('applicationSection').style.display = 'none';
+            }
+
+            const loadedData = await loadDashboardData(user.uid, true);
+            return loadedData;
 
         } else {
-            // No application exists for this user
-            console.log(`No application found for user ${user.uid}. Showing application form.`);
+            // CASE 3: No Application Found (Show New Form)
+            console.log(`No application found. Showing form.`);
             if (elements.startApplicationBtn) elements.startApplicationBtn.style.display = 'inline-flex';
-            if (elements.dashboardSection) elements.dashboardSection.style.display = 'none'; // Ensure dashboard is hidden
-            showSection('application'); // Show the application form section
+            if (elements.dashboardSection) elements.dashboardSection.style.display = 'none';
+            if (elements.existingApplication) elements.existingApplication.style.display = 'none';
+            
+            showSection('application');
             return null;
         }
     }, 'Error checking application status');
 }
-
 // --- Payment Handling ---
 
 /**

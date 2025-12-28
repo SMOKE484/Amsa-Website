@@ -6,7 +6,7 @@ import { showSection, updateSubjects, updateButtonState } from './ui.js';
 import { submitApplication, initializeFormNavigation, getApplicationData } from './form.js';
 import { initializeSignaturePads, clearSignature, clearLearnerSignature, clearParentSignaturePledge } from './signature.js';
 import { handleFileUpload, handleFileDrop } from './storage.js';
-import { checkApplicationStatus, handlePaymentReturn, loadDashboardData, setupApplicationListener } from './database.js';
+import { checkApplicationStatus, handlePaymentReturn, loadDashboardData, setupApplicationListener,preSaveApplication } from './database.js';
 import { showToast, debounce, setupAutoSave, withErrorHandling } from './utilities.js';
 import { showPaystackPaymentModal, initiateTuitionPayment, generateMonthlyPayments, initializePaymentPlanSelection, checkAndHidePaymentPlan } from './payments.js';
 
@@ -243,18 +243,27 @@ async function submitApplicationWithPayment(e) {
 
     appState.isSubmitting = true;
     const submitButton = e.target.querySelector('button[type="submit"]');
-    if (submitButton) updateButtonState(submitButton, true, 'Submitting...');
+    // Visual feedback that we are saving data first
+    if (submitButton) updateButtonState(submitButton, true, 'Saving Data...');
 
     try {
-        const applicationData = await getApplicationData();
-        if (!applicationData) {
+        const rawFormData = await getApplicationData();
+        if (!rawFormData) {
             throw new Error('Failed to retrieve form data.');
         }
 
-        const paymentSuccess = await showPaystackPaymentModal(applicationData);
+        // --- CHANGE START ---
+        // 1. Save data & upload files NOW (Safety Save)
+        const savedData = await preSaveApplication(rawFormData);
+        
+        // 2. Update button text so user knows payment is next
+        if (submitButton) updateButtonState(submitButton, true, 'Opening Payment...');
+
+       
+        const paymentSuccess = await showPaystackPaymentModal(savedData);
 
         if (paymentSuccess) {
-            // Payment was successful, proceed with final submission steps
+            // Success is handled in payments.js callback
         } else {
             showToast('Application fee payment is required to submit.', 'warning');
             if (submitButton) updateButtonState(submitButton, false);
