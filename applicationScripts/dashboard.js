@@ -17,9 +17,9 @@ const FEE_STRUCTURE = {
             tenMonths: 250000
         },
         3: {
-            upfront: 310000,
-            sixMonths: 330000,
-            tenMonths: 350000
+            upfront: 330000,
+            sixMonths: 360000,
+            tenMonths: 380000
         },
         4: {
             upfront: 410000,
