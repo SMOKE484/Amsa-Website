@@ -17,8 +17,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const FEE_STRUCTURE = {
         1: { upfront: 1100, sixMonths: 1300, tenMonths: 1500 },
         2: { upfront: 2100, sixMonths: 2300, tenMonths: 2500 },
-        3: { upfront: 3100, sixMonths: 3300, tenMonths: 3500 },
+        3: { upfront: 3300, sixMonths: 3600, tenMonths: 3800 },
         4: { upfront: 4100, sixMonths: 4300, tenMonths: 4500 }
+    };
+
+    // Subject lists for each grade
+    const SUBJECTS_BY_GRADE = {
+        "8": ["Mathematics", "Natural Sciences", "English", "Social Sciences", "Technology", "Economic Management Sciences", "Life Orientation", "Creative Arts"],
+        "9": ["Mathematics", "Natural Sciences", "English", "Social Sciences", "Technology", "Economic Management Sciences", "Life Orientation", "Creative Arts"],
+        "10": ["Mathematics", "Physical Sciences", "Life Sciences", "English", "Accounting", "Business Studies", "Geography", "History", "Life Orientation"],
+        "11": ["Mathematics", "Physical Sciences", "Life Sciences", "English", "Accounting", "Business Studies", "Geography", "History", "Life Orientation"],
+        "12": ["Mathematics", "Physical Sciences", "Life Sciences", "English", "Accounting", "Business Studies", "Geography", "History", "Life Orientation"]
     };
 
     const APPLICATIONS_PER_PAGE = 10;
@@ -49,11 +58,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const prevPageBtn = document.getElementById('prevPageBtn');
     const nextPageBtn = document.getElementById('nextPageBtn');
     const pageInfo = document.getElementById('pageInfo');
+    const editApplicationBtn = document.getElementById('editApplicationBtn');
     
     // Modal Elements
     const paymentDetailModal = document.getElementById('paymentDetailModal');
     const closePaymentModal = document.getElementById('closePaymentModal');
     const modalCloseBtn = paymentDetailModal?.querySelector('.close');
+    
+    // Edit Modal Elements
+    const editApplicationModal = document.getElementById('editApplicationModal');
+    const closeEditModal = document.getElementById('closeEditModal');
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
+    const saveEditBtn = document.getElementById('saveEditBtn');
+    
+    // Edit Form Elements
+    const editFirstName = document.getElementById('editFirstName');
+    const editLastName = document.getElementById('editLastName');
+    const editEmail = document.getElementById('editEmail');
+    const editPhone = document.getElementById('editPhone');
+    const editGrade = document.getElementById('editGrade');
+    const editSchool = document.getElementById('editSchool');
+    const editPaymentPlan = document.getElementById('editPaymentPlan');
+    const editPaymentStatus = document.getElementById('editPaymentStatus');
+    const editParentName = document.getElementById('editParentName');
+    const editParentPhone = document.getElementById('editParentPhone');
+    const editSubjectsContainer = document.getElementById('editSubjectsContainer');
     
     // State
     let applications = [];
@@ -68,7 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let sortDirection = 'asc';
 
     // Listener for the specific application detail view
-    let currentApplicationListener = null; // To store the unsubscribe function
+    let currentApplicationListener = null;
 
     // Check if Firebase is properly initialized
     function checkFirebaseAvailability() {
@@ -77,7 +106,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return false;
         }
         
-        // Check if required Firebase functions are available
         const requiredFunctions = [
             'auth', 'db', 'signInWithPopup', 'GoogleAuthProvider', 'signOut', 
             'onAuthStateChanged', 'collection', 'getDocs', 'getDoc', 'doc', 
@@ -97,16 +125,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event Listeners
     googleSignInBtn.addEventListener('click', handleGoogleSignIn);
     logoutBtn.addEventListener('click', handleLogout);
+    
     menuItems.forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
             const section = item.getAttribute('data-section');
+            if (section !== 'applicationDetail') {
+                cleanupDetailListener();
+            }
             showSection(section);
         });
     });
     
     backToListBtn.addEventListener('click', () => {
-        cleanupDetailListener(); // Clean up listener on close
+        cleanupDetailListener();
         showSection('applications');
     });
     
@@ -127,6 +159,12 @@ document.addEventListener('DOMContentLoaded', () => {
     downloadApplicationBtn.addEventListener('click', downloadApplicationPDF);
     prevPageBtn.addEventListener('click', goToPrevPage);
     nextPageBtn.addEventListener('click', goToNextPage);
+    
+    // Edit Application Listeners
+    editApplicationBtn.addEventListener('click', openEditModal);
+    closeEditModal.addEventListener('click', () => editApplicationModal.style.display = 'none');
+    cancelEditBtn.addEventListener('click', () => editApplicationModal.style.display = 'none');
+    saveEditBtn.addEventListener('click', saveEditedApplication);
     
     // Modal event listeners
     if (closePaymentModal) {
@@ -149,38 +187,64 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    if (editApplicationModal) {
+        editApplicationModal.addEventListener('click', (e) => {
+            if (e.target === editApplicationModal) {
+                editApplicationModal.style.display = 'none';
+            }
+        });
+    }
+    
     // Debounce for search
     let searchTimeout;
     let paymentSearchTimeout;
 
-    // *** ADDED: Event delegation for collapsible sections ***
+    // Event delegation for collapsible sections and payment actions
     const mainContent = document.querySelector('.main-content');
     if (mainContent) {
         mainContent.addEventListener('click', (e) => {
-            // Find the closest .collapsible-header
             const header = e.target.closest('.collapsible-header');
             
             if (header) {
-                e.preventDefault(); // Prevent any default action
+                e.preventDefault();
                 
-                // Get the target content ID
                 const targetId = header.dataset.target;
                 if (!targetId) {
                     console.warn('Collapsible header missing data-target attribute');
                     return;
                 }
                 
-                // Find the content element
                 const content = document.getElementById(targetId);
                 if (!content) {
                     console.error(`Collapsible content with ID ${targetId} not found`);
                     return;
                 }
                 
-                // Toggle the 'collapsed' class on the header
                 header.classList.toggle('collapsed');
+            }
+            
+            // Handle mark as paid button clicks
+            const markPaidBtn = e.target.closest('.mark-as-paid-btn');
+            if (markPaidBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const month = markPaidBtn.getAttribute('data-month');
+                const amount = markPaidBtn.getAttribute('data-amount');
+                markPaymentAsPaid(month, amount);
+            }
+            
+            // Handle view payment details button clicks
+            const viewPaymentBtn = e.target.closest('.view-payment-btn');
+            if (viewPaymentBtn) {
+                e.preventDefault();
+                e.stopPropagation();
+                const month = viewPaymentBtn.getAttribute('data-month');
+                const amount = viewPaymentBtn.getAttribute('data-amount');
+                const date = viewPaymentBtn.getAttribute('data-date');
+                const reference = viewPaymentBtn.getAttribute('data-reference');
+                const method = viewPaymentBtn.getAttribute('data-method');
                 
-                // The CSS will handle the show/hide
+                showPaymentDetails('monthly', amount, month, date, reference, method);
             }
         });
     }
@@ -190,22 +254,41 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Helper function to clean up the detail view listener
     function cleanupDetailListener() {
-        if (currentApplicationListener) {
-            console.log('Cleaning up detail view listener');
-            currentApplicationListener(); // This unsubscribes
+        console.log('Cleaning up detail view listener');
+        
+        // Unsubscribe from Firebase listener
+        if (currentApplicationListener && typeof currentApplicationListener === 'function') {
+            currentApplicationListener();
             currentApplicationListener = null;
+        }
+        
+        // Clear current application data
+        currentApplication = null;
+        
+        // Remove any loading overlay
+        const detailSection = document.getElementById('applicationDetailSection');
+        if (detailSection) {
+            const loadingOverlay = detailSection.querySelector('.detail-loading-overlay');
+            if (loadingOverlay) {
+                loadingOverlay.remove();
+            }
         }
     }
 
-    // *** ADDED: Helper function to extract payments from Firestore data ***
+    // IMPROVED Helper function to extract payments from Firestore data
     function extractPayments(firestoreData) {
         const payments = {};
         
-        // Look for payments in nested structure (payments.october_2025, etc.)
+        // Check ALL fields in the data for payment information
         Object.keys(firestoreData).forEach(key => {
+            // Look for payments in nested structure (payments.october_2025, etc.)
             if (key.startsWith('payments.')) {
                 const monthKey = key.replace('payments.', '');
                 payments[monthKey] = firestoreData[key];
+            }
+            // Also check for direct payment fields
+            else if (key.includes('_payment') || key.includes('Payment')) {
+                payments[key] = firestoreData[key];
             }
         });
         
@@ -214,8 +297,44 @@ document.addEventListener('DOMContentLoaded', () => {
             Object.assign(payments, firestoreData.payments);
         }
         
-        console.log("Extracted payments:", payments);
+        // Check for payment fields directly on the data object
+        const paymentFields = ['payment', 'paid', 'amount', 'reference', 'paidAt'];
+        paymentFields.forEach(field => {
+            if (firestoreData[field] && field !== 'paymentStatus' && field !== 'paymentPlan') {
+                payments[field] = firestoreData[field];
+            }
+        });
+        
+        console.log("Extracted payments from data:", payments, "from data:", firestoreData);
         return Object.keys(payments).length > 0 ? payments : undefined;
+    }
+
+    // Helper function to safely convert Firestore timestamp to Date
+    function safeConvertToDate(timestamp) {
+        if (!timestamp) return new Date();
+        
+        try {
+            // Check if it's a Firestore Timestamp
+            if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+                return timestamp.toDate();
+            }
+            // Check if it's already a Date
+            if (timestamp instanceof Date) {
+                return timestamp;
+            }
+            // Try to parse as string
+            if (typeof timestamp === 'string') {
+                const date = new Date(timestamp);
+                if (!isNaN(date.getTime())) {
+                    return date;
+                }
+            }
+            // Fallback to current date
+            return new Date();
+        } catch (error) {
+            console.warn('Error converting timestamp to Date:', error);
+            return new Date();
+        }
     }
 
     // Functions
@@ -231,6 +350,8 @@ document.addEventListener('DOMContentLoaded', () => {
         onAuthStateChanged(window.firebase.auth, async (user) => {
             if (user) {
                 try {
+                    showDashboardLoading(true);
+                    
                     // Check if user is admin
                     const adminDoc = await getDoc(doc(window.firebase.db, "admins", user.uid));
                     if (adminDoc.exists() && adminDoc.data().role === "admin") {
@@ -239,10 +360,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         adminAvatar.textContent = user.displayName ? user.displayName[0].toUpperCase() : user.email[0].toUpperCase();
                         adminName.textContent = user.displayName || user.email;
                         
-                        // Load applications (without real-time for now)
-                        await loadApplicationsFallback();
+                        // Load applications immediately
+                        await loadInitialApplications();
                         
-                        // Try to set up real-time listeners if available
+                        // Show dashboard immediately
+                        showDashboardLoading(false);
+                        
+                        // Setup real-time listeners
                         setupRealTimeListeners();
                         
                     } else {
@@ -261,6 +385,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 loginSection.style.display = 'flex';
                 dashboardSection.style.display = 'none';
+                showDashboardLoading(false);
             }
         });
     }
@@ -271,7 +396,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const { signInWithPopup, GoogleAuthProvider } = window.firebase;
         const provider = new GoogleAuthProvider();
         
-        // Add scopes if needed
         provider.addScope('email');
         provider.addScope('profile');
         
@@ -279,7 +403,6 @@ document.addEventListener('DOMContentLoaded', () => {
             .catch(error => {
                 console.error("Google Sign-In Error:", error);
                 if (error.code === 'auth/cancelled-popup-request') {
-                    // Ignore cancelled popup requests
                     console.log("Sign-in popup was cancelled");
                 } else {
                     alert("Sign in failed: " + error.message);
@@ -289,6 +412,18 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function handleLogout() {
         if (confirm("Are you sure you want to log out?")) {
+            // Clean up listeners
+            if (window.applicationsListener) {
+                window.applicationsListener();
+                window.applicationsListener = null;
+            }
+            
+            cleanupDetailListener();
+            
+            // Clear heavy data
+            applications = [];
+            filteredApplications = [];
+            
             if (!checkFirebaseAvailability()) return;
             const { signOut } = window.firebase;
             signOut(window.firebase.auth);
@@ -298,7 +433,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function showSection(sectionId) {
         console.log(`Attempting to show section: ${sectionId}`);
         
-        // If we are navigating *away* from the detail section, clean up the listener
         if (sectionId !== 'applicationDetail') {
             cleanupDetailListener();
         }
@@ -323,8 +457,9 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        if (sectionId === 'analytics') {
-            loadAnalytics();
+        if (sectionId === 'applications') {
+            renderApplications();
+            updatePagination();
         } else if (sectionId === 'payments') {
             renderPayments();
         }
@@ -332,7 +467,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Setup real-time listeners if available
     function setupRealTimeListeners() {
-        // Check if onSnapshot is available
         if (typeof window.firebase.onSnapshot === 'function') {
             try {
                 setupApplicationsListener();
@@ -354,95 +488,131 @@ document.addEventListener('DOMContentLoaded', () => {
         const { collection, query, orderBy, onSnapshot } = window.firebase;
         
         try {
-            const q = query(collection(window.firebase.db, "applications"), orderBy("submittedAt", "desc"));
-            
-            const unsubscribe = onSnapshot(q, (querySnapshot) => {
-                console.log('Real-time update received for applications collection');
+            // Only setup listeners if we don't already have them
+            if (!window.applicationsListener) {
+                const q = query(collection(window.firebase.db, "applications"), orderBy("submittedAt", "desc"));
                 
-                applications = querySnapshot.docs.map(doc => {
-                    const data = doc.data();
-                    return {
-                        id: doc.id,
-                        ...data,
-                        submittedAt: data.submittedAt ? data.submittedAt.toDate() : new Date(),
-                        statusUpdates: data.statusUpdates ? data.statusUpdates.map(update => ({
-                            ...update,
-                            timestamp: update.timestamp ? update.timestamp.toDate() : new Date()
-                        })) : []
-                    };
+                window.applicationsListener = onSnapshot(q, (querySnapshot) => {
+                    console.log('Real-time update received');
+                    
+                    applications = querySnapshot.docs.map(doc => {
+                        const data = doc.data();
+                        const app = {
+                            id: doc.id,
+                            ...data,
+                            submittedAt: safeConvertToDate(data.submittedAt)
+                        };
+                        
+                        app.payments = extractPayments(data);
+                        const subjectCount = app.selectedSubjects ? app.selectedSubjects.length : 0;
+                        const paymentPlan = app.paymentPlan || 'upfront';
+                        const totalAmount = calculateTotalAmount(subjectCount, paymentPlan);
+                        app.calculatedAmountPaid = calculateAmountPaid(app, totalAmount);
+                        
+                        return app;
+                    });
+                    
+                    // Update cache
+                    localStorage.setItem('cachedApplications', JSON.stringify({
+                        data: applications.map(app => ({
+                            ...app,
+                            submittedAt: app.submittedAt.toISOString(),
+                            calculatedAmountPaid: app.calculatedAmountPaid,
+                            payments: app.payments
+                        })),
+                        timestamp: Date.now()
+                    }));
+                    
+                    // IMPORTANT: Update filteredApplications to match applications
+                    filteredApplications = [...applications];
+                    
+                    updateStats();
+                    renderApplications();
+                    renderPayments();
+                    updatePagination();
+                    
+                }, (error) => {
+                    console.error("Real-time listener error:", error);
                 });
                 
-                // Update cache with fresh data
-                localStorage.setItem('cachedApplications', JSON.stringify({
-                    data: applications.map(app => ({
-                        ...app,
-                        submittedAt: app.submittedAt.toISOString(),
-                        statusUpdates: app.statusUpdates ? app.statusUpdates.map(update => ({
-                            ...update,
-                            timestamp: update.timestamp.toISOString()
-                        })) : []
-                    })),
-                    timestamp: Date.now()
-                }));
-                
-                filteredApplications = [...applications];
-                updateStats();
-                renderApplications();
-                updatePagination();
-                renderPayments();
-                
-                // Note: We don't refresh the detail view here.
-                // The dedicated detail listener (currentApplicationListener) will handle that.
-                
-                // Check for payment updates to show toast
-                querySnapshot.docChanges().forEach((change) => {
-                    if (change.type === 'modified') {
-                         const updatedApp = change.doc.data();
-                         // Simple check: if paymentStatus changed and isn't pending, it's a payment update.
-                         if (change.doc.data().paymentStatus !== PAYMENT_STATUS.PENDING) {
-                            console.log('Payment update detected for:', updatedApp.firstName, updatedApp.lastName);
-                            showToast(`Payment update: ${updatedApp.firstName} ${updatedApp.lastName}`, 'success');
-                         }
-                    }
-                });
-
-            }, (error) => {
-                console.error("Real-time listener error:", error);
-                showToast('Error receiving updates', 'error');
-            });
-            
-            // Store unsubscribe function for cleanup
-            window.applicationUnsubscribe = unsubscribe;
-            
+                console.log("Real-time listeners initialized");
+            }
         } catch (error) {
             console.error("Error setting up applications listener:", error);
             throw error;
         }
     }
 
-    // Fallback function for loading applications
-    async function loadApplicationsFallback() {
-        if (!checkFirebaseAvailability()) return;
-        
+    // Load applications for initial display
+    async function loadInitialApplications() {
         try {
-            showLoading(true);
+            // First try to load from cache for instant display
+            const cached = localStorage.getItem('cachedApplications');
+            if (cached) {
+                try {
+                    const parsedCache = JSON.parse(cached);
+                    if (Date.now() - parsedCache.timestamp < CACHE_TTL) {
+                        applications = parsedCache.data.map(app => ({
+                            ...app,
+                            submittedAt: new Date(app.submittedAt),
+                            statusUpdates: app.statusUpdates ? app.statusUpdates.map(update => ({
+                                ...update,
+                                timestamp: new Date(update.timestamp)
+                            })) : [],
+                            calculatedAmountPaid: app.calculatedAmountPaid || 0,
+                            payments: app.payments || {}
+                        }));
+                        
+                        // IMPORTANT: Initialize filteredApplications with ALL applications
+                        filteredApplications = [...applications];
+                        
+                        updateStats();
+                        renderApplications();
+                        updatePagination();
+                        showToast('Loaded from cache', 'info');
+                        return; // Exit early if cache is valid
+                    }
+                } catch (error) {
+                    console.error("Error loading from cache:", error);
+                }
+            }
+            
+            // Load all applications from Firebase
             const { collection, getDocs, query, orderBy } = window.firebase;
-            const q = query(collection(window.firebase.db, "applications"), orderBy("submittedAt", "desc"));
+            
+            const q = query(
+                collection(window.firebase.db, "applications"), 
+                orderBy("submittedAt", "desc")
+            );
+            
             const querySnapshot = await getDocs(q);
             
             applications = querySnapshot.docs.map(doc => {
                 const data = doc.data();
-                return {
+                const app = {
                     id: doc.id,
                     ...data,
-                    submittedAt: data.submittedAt ? data.submittedAt.toDate() : new Date(),
+                    submittedAt: safeConvertToDate(data.submittedAt),
                     statusUpdates: data.statusUpdates ? data.statusUpdates.map(update => ({
                         ...update,
-                        timestamp: update.timestamp ? update.timestamp.toDate() : new Date()
+                        timestamp: safeConvertToDate(update.timestamp)
                     })) : []
                 };
+                
+                // Process payments and calculate amount paid
+                app.payments = extractPayments(data);
+                const subjectCount = app.selectedSubjects ? app.selectedSubjects.length : 0;
+                const paymentPlan = app.paymentPlan || 'upfront';
+                const totalAmount = calculateTotalAmount(subjectCount, paymentPlan);
+                app.calculatedAmountPaid = calculateAmountPaid(app, totalAmount);
+                
+                return app;
             });
             
+            // IMPORTANT: Initialize filteredApplications with ALL applications
+            filteredApplications = [...applications];
+            
+            // Cache the data
             localStorage.setItem('cachedApplications', JSON.stringify({
                 data: applications.map(app => ({
                     ...app,
@@ -450,12 +620,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     statusUpdates: app.statusUpdates ? app.statusUpdates.map(update => ({
                         ...update,
                         timestamp: update.timestamp.toISOString()
-                    })) : []
+                    })) : [],
+                    calculatedAmountPaid: app.calculatedAmountPaid,
+                    payments: app.payments
                 })),
                 timestamp: Date.now()
             }));
             
-            filteredApplications = [...applications];
             updateStats();
             renderApplications();
             updatePagination();
@@ -464,16 +635,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
         } catch (error) {
             console.error("Error loading applications:", error);
-            if (error.code === 'permission-denied') {
-                showToast("Permission denied. Please check Firebase security rules.", "error");
-            } else {
-                showToast("Failed to load applications: " + error.message, "error");
-            }
-            
-            // Try to load from cache as last resort
+            showToast("Using cached data", "warning");
             loadFromCache();
-        } finally {
-            showLoading(false);
         }
     }
     
@@ -484,15 +647,23 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const parsedCache = JSON.parse(cached);
                 if (Date.now() - parsedCache.timestamp < CACHE_TTL) {
+                    console.log('Loading applications from cache');
                     applications = parsedCache.data.map(app => ({
                         ...app,
                         submittedAt: new Date(app.submittedAt),
                         statusUpdates: app.statusUpdates ? app.statusUpdates.map(update => ({
                             ...update,
                             timestamp: new Date(update.timestamp)
-                        })) : []
+                        })) : [],
+                        calculatedAmountPaid: app.calculatedAmountPaid || 0,
+                        payments: app.payments || {}
                     }));
+                    
+                    // IMPORTANT: Initialize filteredApplications with ALL cached applications
                     filteredApplications = [...applications];
+                    
+                    console.log('Loaded from cache. Total apps:', applications.length);
+                    
                     updateStats();
                     renderApplications();
                     updatePagination();
@@ -505,6 +676,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // No data available
+        console.log('No cached data available');
         applications = [];
         filteredApplications = [];
         updateStats();
@@ -514,13 +686,20 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function updateStats() {
-        document.getElementById('totalApplications').textContent = applications.length || 'No applications yet';
-        document.getElementById('pendingApplications').textContent = applications.filter(app => 
-            app.status === STATUS.SUBMITTED || !app.status).length || 0;
-        document.getElementById('approvedApplications').textContent = applications.filter(app => 
-            app.status === STATUS.APPROVED).length || 0;
-        document.getElementById('paidApplications').textContent = applications.filter(app => 
-            app.paymentStatus === PAYMENT_STATUS.FULLY_PAID).length || 0;
+        const totalApps = applications.length;
+        const pendingApps = applications.filter(app => 
+            app.status === STATUS.SUBMITTED || !app.status).length;
+        const approvedApps = applications.filter(app => 
+            app.status === STATUS.APPROVED).length;
+        const paidApps = applications.filter(app => 
+            app.paymentStatus === PAYMENT_STATUS.FULLY_PAID).length;
+        
+        console.log('Stats update - Total:', totalApps, 'Pending:', pendingApps, 'Approved:', approvedApps, 'Paid:', paidApps);
+        
+        document.getElementById('totalApplications').textContent = totalApps || '0';
+        document.getElementById('pendingApplications').textContent = pendingApps || '0';
+        document.getElementById('approvedApplications').textContent = approvedApps || '0';
+        document.getElementById('paidApplications').textContent = paidApps || '0';
         
         const recentApps = applications.slice(0, 5);
         const recentList = document.getElementById('recentApplicationsList');
@@ -561,18 +740,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function renderApplications() {
+        console.log('renderApplications called. Total filtered apps:', filteredApplications.length, 'Total apps:', applications.length);
+        
         const startIndex = (currentPage - 1) * APPLICATIONS_PER_PAGE;
         const endIndex = Math.min(startIndex + APPLICATIONS_PER_PAGE, filteredApplications.length);
         const pageApplications = filteredApplications.slice(startIndex, endIndex);
         
         applicationsTableBody.innerHTML = '';
         
+        // Check if we have any data at all
+        if (applications.length === 0 && filteredApplications.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 8;
+            td.className = 'no-data';
+            td.textContent = 'No applications found. Please wait while data loads...';
+            tr.appendChild(td);
+            applicationsTableBody.appendChild(tr);
+            return;
+        }
+        
         if (pageApplications.length === 0) {
             const tr = document.createElement('tr');
             const td = document.createElement('td');
             td.colSpan = 8;
             td.className = 'no-data';
-            td.textContent = 'No applications found. Try resetting the filters.';
+            td.textContent = 'No applications match your filters. Try resetting the filters or clear the search.';
             tr.appendChild(td);
             applicationsTableBody.appendChild(tr);
             return;
@@ -582,19 +775,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const row = document.createElement('tr');
             
             const tdName = document.createElement('td');
-            tdName.textContent = `${app.firstName} ${app.lastName}`;
+            tdName.textContent = `${app.firstName || ''} ${app.lastName || ''}`;
             row.appendChild(tdName);
             
             const tdGrade = document.createElement('td');
-            tdGrade.textContent = `Grade ${app.grade}`;
+            tdGrade.textContent = `Grade ${app.grade || ''}`;
             row.appendChild(tdGrade);
             
             const tdSchool = document.createElement('td');
-            tdSchool.textContent = app.school;
+            tdSchool.textContent = app.school || 'N/A';
             row.appendChild(tdSchool);
             
             const tdSubjects = document.createElement('td');
-            tdSubjects.textContent = app.selectedSubjects ? app.selectedSubjects.slice(0, 2).join(', ') + (app.selectedSubjects.length > 2 ? '...' : '') : 'N/A';
+            if (app.selectedSubjects && Array.isArray(app.selectedSubjects)) {
+                tdSubjects.textContent = app.selectedSubjects.slice(0, 2).join(', ') + (app.selectedSubjects.length > 2 ? '...' : '');
+            } else {
+                tdSubjects.textContent = 'N/A';
+            }
             row.appendChild(tdSubjects);
             
             const tdStatus = document.createElement('td');
@@ -638,12 +835,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // *** FIXED: Properly handle payments data in real-time listener ***
     function viewApplication(appId) {
         console.log(`Setting up real-time listener for application ID: ${appId}`);
-
+        
+        // Clean up any existing listener
         cleanupDetailListener();
-
+        
+        // Set a loading state
+        showApplicationDetailLoading(true);
+        
+        // First load the application data immediately
+        const app = applications.find(app => app.id === appId);
+        if (app) {
+            // Use cached data for immediate display
+            currentApplication = processApplicationData(app.id, app);
+            renderApplicationDetails();
+            showSection('applicationDetail');
+            showApplicationDetailLoading(false);
+        }
+        
+        // Then set up the real-time listener in the background
         const { doc, onSnapshot } = window.firebase;
         const appRef = doc(window.firebase.db, "applications", appId);
 
@@ -651,83 +862,60 @@ document.addEventListener('DOMContentLoaded', () => {
             if (docSnap.exists()) {
                 console.log('Application detail view received real-time update');
                 const freshData = docSnap.data();
-                console.log("Raw Firestore Data:", freshData);
-
-                // *** FIXED: Properly extract payments from Firestore nested structure ***
-                currentApplication = {
-                    id: docSnap.id,
-                    firstName: freshData.firstName,
-                    lastName: freshData.lastName,
-                    email: freshData.email,
-                    phone: freshData.phone,
-                    grade: freshData.grade,
-                    school: freshData.school,
-                    gender: freshData.gender,
-                    selectedSubjects: freshData.selectedSubjects,
-                    parentName: freshData.parentName,
-                    parentRelationship: freshData.parentRelationship,
-                    parentPhone: freshData.parentPhone,
-                    parentEmail: freshData.parentEmail,
-                    reportCardUrl: freshData.reportCardUrl,
-                    idDocumentUrl: freshData.idDocumentUrl,
-                    status: freshData.status,
-                    paymentStatus: freshData.paymentStatus,
-                    paymentPlan: freshData.paymentPlan,
-                    paymentStartDate: freshData.paymentStartDate,
-                    // *** CRITICAL FIX: Use helper function to extract payments ***
-                    payments: extractPayments(freshData),
-                    submittedAt: freshData.submittedAt ? freshData.submittedAt.toDate() : new Date(),
-                    statusUpdates: freshData.statusUpdates ? freshData.statusUpdates.map(update => ({
-                        ...update,
-                        timestamp: update.timestamp ? update.timestamp.toDate() : new Date()
-                    })) : [],
-                    alternateContact: freshData.alternateContact,
-                    finalAgreement: freshData.finalAgreement,
-                    lastStatusUpdateTimestamp: freshData.lastStatusUpdateTimestamp,
-                    learnerFullName: freshData.learnerFullName,
-                    learnerFullNamePledge: freshData.learnerFullNamePledge,
-                    learnerId: freshData.learnerId,
-                    learnerSignature: freshData.learnerSignature,
-                    learnerSignatureDate: freshData.learnerSignatureDate,
-                    parentConsent: freshData.parentConsent,
-                    parentConsentDate: freshData.parentConsentDate,
-                    parentFullName: freshData.parentFullName,
-                    parentFullNamePledge: freshData.parentFullNamePledge,
-                    parentSignature: freshData.parentSignature,
-                    parentSignatureDatePledge: freshData.parentSignatureDatePledge,
-                    parentSignaturePledge: freshData.parentSignaturePledge,
-                    rulesAgreement: freshData.rulesAgreement,
-                    selectedPrograms: freshData.selectedPrograms,
-                    timestamp: freshData.timestamp,
-                    updatedAt: freshData.updatedAt
-                };
-
-                console.log("Processed currentApplication object:", currentApplication);
-                console.log("Payments after processing:", currentApplication.payments);
-
-                // Update local applications array
-                const appIndex = applications.findIndex(app => app.id === appId);
-                if (appIndex !== -1) {
-                     applications[appIndex] = { ...currentApplication };
-                }
-
-                // Render the details
+                
+                // Process the fresh data
+                const processedApp = processApplicationData(docSnap.id, freshData);
+                
+                // Update current application
+                currentApplication = processedApp;
+                
+                // Update the view
                 renderApplicationDetails();
-
-                // Show the section
-                showSection('applicationDetail');
-
-            } else {
-                console.error(`Application with ID ${appId} not found`);
-                showToast('Application not found', 'error');
-                cleanupDetailListener();
-                showSection('applications');
             }
         }, (error) => {
             console.error("Error listening to application detail:", error);
             showToast('Error loading application details', 'error');
             cleanupDetailListener();
         });
+    }
+
+    // Helper function to process application data
+    function processApplicationData(id, freshData) {
+        const app = {
+            id: id,
+            firstName: freshData.firstName,
+            lastName: freshData.lastName,
+            email: freshData.email,
+            phone: freshData.phone,
+            grade: freshData.grade,
+            school: freshData.school,
+            gender: freshData.gender,
+            selectedSubjects: freshData.selectedSubjects,
+            parentName: freshData.parentName,
+            parentRelationship: freshData.parentRelationship,
+            parentPhone: freshData.parentPhone,
+            parentEmail: freshData.parentEmail,
+            reportCardUrl: freshData.reportCardUrl,
+            idDocumentUrl: freshData.idDocumentUrl,
+            status: freshData.status,
+            paymentStatus: freshData.paymentStatus,
+            paymentPlan: freshData.paymentPlan,
+            paymentStartDate: freshData.paymentStartDate,
+            payments: extractPayments(freshData),
+            submittedAt: safeConvertToDate(freshData.submittedAt),
+            statusUpdates: freshData.statusUpdates ? freshData.statusUpdates.map(update => ({
+                ...update,
+                timestamp: safeConvertToDate(update.timestamp)
+            })) : []
+        };
+        
+        // Calculate amount paid
+        const subjectCount = app.selectedSubjects ? app.selectedSubjects.length : 0;
+        const paymentPlan = app.paymentPlan || 'upfront';
+        const totalAmount = calculateTotalAmount(subjectCount, paymentPlan);
+        app.calculatedAmountPaid = calculateAmountPaid(app, totalAmount);
+        
+        return app;
     }
 
     function renderApplicationDetails() {
@@ -738,25 +926,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        const requiredIds = [
-            'detailName', 'detailEmail', 'detailPhone', 'detailGrade', 'detailSchool', 'detailGender',
-            'detailSubjects', 'detailParentName', 'detailParentRelationship', 'detailParentPhone',
-            'detailParentEmail', 'reportCardLink', 'idDocumentLink', 'statusChangeSelect', 'statusHistory',
-            'detailPaymentStatus', 'detailPaymentPlan', 'detailTotalAmount', 'detailAmountPaid', 'detailBalance',
-            'paymentHistory', 'paymentTotalDue', 'paymentTotalPaid', 'paymentRemainingBalance',
-            'monthlyPaymentScheduleCard', 'monthlyPaymentGrid'
-        ];
-        
-        for (const id of requiredIds) {
-            if (!document.getElementById(id)) {
-                console.error(`DOM element with ID ${id} not found`);
-                alert('Application details view is misconfigured. Please contact support.');
-                return;
-            }
-        }
-
-        console.log('Rendering details for:', currentApplication.id);
-
+        // Basic info
         document.getElementById('detailName').textContent = `${currentApplication.firstName || ''} ${currentApplication.lastName || ''}` || 'Not provided';
         document.getElementById('detailEmail').textContent = currentApplication.email || 'N/A';
         document.getElementById('detailPhone').textContent = currentApplication.phone || 'N/A';
@@ -764,10 +934,11 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('detailSchool').textContent = currentApplication.school || 'N/A';
         document.getElementById('detailGender').textContent = currentApplication.gender || 'N/A';
 
+        // Payment info
         const subjectCount = currentApplication.selectedSubjects ? currentApplication.selectedSubjects.length : 0;
         const paymentPlan = currentApplication.paymentPlan || 'upfront';
         const totalAmount = calculateTotalAmount(subjectCount, paymentPlan);
-        const amountPaid = calculateAmountPaid(currentApplication, totalAmount);
+        const amountPaid = currentApplication.calculatedAmountPaid || calculateAmountPaid(currentApplication, totalAmount);
         const balance = totalAmount - amountPaid;
 
         document.getElementById('detailPaymentStatus').textContent = currentApplication.paymentStatus || PAYMENT_STATUS.PENDING;
@@ -777,6 +948,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('detailBalance').textContent = `R${balance.toFixed(2)}`;
         document.getElementById('detailBalance').style.color = balance > 0 ? 'var(--danger)' : 'var(--success)';
 
+        // Subjects
         const subjectsContainer = document.getElementById('detailSubjects');
         subjectsContainer.innerHTML = '';
         if (currentApplication.selectedSubjects && currentApplication.selectedSubjects.length > 0) {
@@ -792,11 +964,13 @@ document.addEventListener('DOMContentLoaded', () => {
             subjectsContainer.appendChild(p);
         }
 
+        // Parent info
         document.getElementById('detailParentName').textContent = currentApplication.parentName || 'N/A';
         document.getElementById('detailParentRelationship').textContent = currentApplication.parentRelationship || 'N/A';
         document.getElementById('detailParentPhone').textContent = currentApplication.parentPhone || 'N/A';
         document.getElementById('detailParentEmail').textContent = currentApplication.parentEmail || 'N/A';
 
+        // Document links
         const reportCardLink = document.getElementById('reportCardLink');
         const idDocumentLink = document.getElementById('idDocumentLink');
         if (currentApplication.reportCardUrl) {
@@ -812,11 +986,14 @@ document.addEventListener('DOMContentLoaded', () => {
             idDocumentLink.style.display = 'none';
         }
 
+        // Status select
         document.getElementById('statusChangeSelect').value = currentApplication.status || STATUS.SUBMITTED;
 
+        // Payment history and schedule
         renderEnhancedPaymentHistory(currentApplication, totalAmount, amountPaid, balance);
         renderMonthlyPaymentSchedule(currentApplication, paymentPlan, subjectCount);
 
+        // Status history
         const statusHistory = document.getElementById('statusHistory');
         statusHistory.innerHTML = '';
         if (currentApplication.submittedAt) {
@@ -874,7 +1051,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const subjectCount = app.selectedSubjects ? app.selectedSubjects.length : 0;
             const paymentPlan = app.paymentPlan || 'upfront';
             const totalAmount = calculateTotalAmount(subjectCount, paymentPlan);
-            const amountPaid = calculateAmountPaid(app, totalAmount);
+            
+            // Use the pre-calculated amount paid that was calculated when loading applications
+            const amountPaid = app.calculatedAmountPaid || 0;
             const balance = totalAmount - amountPaid;
             
             totalExpected += totalAmount;
@@ -957,27 +1136,47 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function calculateAmountPaid(app, totalAmount) {
+        if (app.paymentStatus === PAYMENT_STATUS.FULLY_PAID) {
+            return totalAmount;
+        }
 
-    if (app.paymentStatus === PAYMENT_STATUS.FULLY_PAID) {
-        return totalAmount;
-    }
+        let amountPaid = 0;
 
-    let amountPaid = 0;
-
-
-    if (app.payments) {
-        Object.values(app.payments).forEach(payment => {
-
-            const isAppFee = payment.type === 'application' || payment.description === 'Application Fee';
+        // Check structured payments
+        if (app.payments && Object.keys(app.payments).length > 0) {
+            console.log(`Calculating amount paid for ${app.firstName} ${app.lastName} from payments object:`, app.payments);
             
-            if (payment.paid && payment.amount && !isAppFee) {
-                amountPaid += payment.amount;
-            }
-        });
+            Object.values(app.payments).forEach(payment => {
+                console.log("Checking payment:", payment);
+                
+                // Skip application fees - only count tuition payments
+                // Check for application fee by amount (R200) or type
+                const isAppFee = (payment.amount === 200 && payment.type !== 'monthly') || 
+                                payment.type === 'application' || 
+                                (payment.description && payment.description.includes('Application')) ||
+                                (payment.amount === 200 && (!payment.paidAt || payment.type === 'application'));
+                
+                // Check if this is a valid monthly payment (has monthKey structure)
+                const isMonthlyPayment = payment.paid === true && 
+                                       payment.amount && 
+                                       payment.amount > 200; // Monthly payments should be > R200
+                
+                if (payment.paid && payment.amount && !isAppFee && isMonthlyPayment) {
+                    console.log(`Adding tuition payment amount: R${payment.amount}`);
+                    amountPaid += Number(payment.amount);
+                } else if (isAppFee && payment.paid) {
+                    console.log(`Skipping application fee: R${payment.amount}`);
+                } else {
+                    console.log(`Skipping payment (not paid or not valid):`, payment);
+                }
+            });
+        } else {
+            console.log(`No payments object found for ${app.firstName} ${app.lastName}`);
+        }
+        
+        console.log(`Total tuition amount paid calculated for ${app.firstName} ${app.lastName}: R${amountPaid.toFixed(2)}`);
+        return amountPaid;
     }
-    
-    return amountPaid;
-}
     
     function formatPaymentPlan(plan) {
         const planNames = {
@@ -989,7 +1188,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function getLastPaymentDate(app) {
-        if (!app.payments) return 'N/A';
+        // Check structured payments first
+        if (!app.payments || Object.keys(app.payments).length === 0) return 'N/A';
         
         const paidPayments = Object.values(app.payments).filter(p => p.paid && p.paidAt);
         if (paidPayments.length === 0) return 'N/A';
@@ -1008,6 +1208,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const paymentValue = paymentFilter.value || 'all';
         const searchValue = (searchInput.value || '').toLowerCase().trim();
         
+        console.log('Filtering applications. Total apps:', applications.length);
+        console.log('Filters:', { statusValue, gradeValue, paymentValue, searchValue });
+        
+        // Always filter from the full applications array
         filteredApplications = applications.filter(app => {
             let statusMatch = statusValue === 'all' || (app.status || STATUS.SUBMITTED) === statusValue;
             let gradeMatch = gradeValue === 'all' || (app.grade && app.grade.toString() === gradeValue);
@@ -1020,6 +1224,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             return statusMatch && gradeMatch && paymentMatch && searchMatch;
         });
+        
+        console.log('Filtered applications count:', filteredApplications.length);
         
         currentPage = 1;
         renderApplications();
@@ -1065,6 +1271,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         paymentHistory.innerHTML = '';
         
+        // Show application fee payment if applicable
         if (app.paymentStatus === PAYMENT_STATUS.APPLICATION_PAID || app.paymentStatus === PAYMENT_STATUS.FULLY_PAID) {
             const paymentItem = document.createElement('div');
             paymentItem.className = 'payment-item detailed';
@@ -1086,8 +1293,12 @@ document.addEventListener('DOMContentLoaded', () => {
             paymentHistory.appendChild(paymentItem);
         }
         
-        if (app.payments) {
+        // Show structured payments
+        if (app.payments && Object.keys(app.payments).length > 0) {
             Object.entries(app.payments).forEach(([monthKey, payment]) => {
+                // Skip if this is an application fee
+                if (payment.amount === 200 && payment.type !== 'monthly') return;
+                
                 const monthName = formatMonthKey(monthKey);
                 const paymentItem = document.createElement('div');
                 paymentItem.className = `payment-item detailed ${payment.paid ? 'paid' : 'pending'}`;
@@ -1118,10 +1329,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
-             
+        // Show upfront payment if applicable
         if (app.paymentPlan === 'upfront' && app.paymentStatus === PAYMENT_STATUS.FULLY_PAID) {
- 
-            const upfrontAmount = totalAmount; 
+            const upfrontAmount = totalAmount;
             
             if (upfrontAmount > 0) {
                 const paymentItem = document.createElement('div');
@@ -1144,6 +1354,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 paymentHistory.appendChild(paymentItem);
             }
         }
+        
         if (paymentHistory.children.length === 0) {
             const p = document.createElement('p');
             p.className = 'no-data';
@@ -1151,6 +1362,7 @@ document.addEventListener('DOMContentLoaded', () => {
             paymentHistory.appendChild(p);
         }
         
+        // Add click listeners to view details buttons
         document.querySelectorAll('.view-payment-details').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1165,7 +1377,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // *** FIXED: Improved payment check to handle undefined payments ***
     function renderMonthlyPaymentSchedule(app, paymentPlan, subjectCount) {
         const monthlyScheduleCard = document.getElementById('monthlyPaymentScheduleCard');
         const monthlyPaymentGrid = document.getElementById('monthlyPaymentGrid');
@@ -1188,19 +1399,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     startDate = new Date(app.paymentStartDate);
                     if (isNaN(startDate.getTime())) {
-                        console.warn("Invalid paymentStartDate found, falling back:", app.paymentStartDate);
-                        startDate = app.submittedAt ? new Date(app.submittedAt) : new Date();
+                        console.warn("Invalid paymentStartDate found, falling back to current date");
+                        startDate = new Date();
                     }
                 } catch (e) {
-                    console.error("Error parsing paymentStartDate, falling back:", e);
-                    startDate = app.submittedAt ? new Date(app.submittedAt) : new Date();
+                    console.error("Error parsing paymentStartDate, falling back to current date:", e);
+                    startDate = new Date();
                 }
             } else {
-                 console.warn("paymentStartDate not found, falling back to submittedAt or current date.");
-                 startDate = app.submittedAt ? new Date(app.submittedAt) : new Date();
-                 if (isNaN(startDate.getTime())) {
-                     startDate = new Date();
-                 }
+                 console.warn("paymentStartDate not found, falling back to current date.");
+                 startDate = new Date();
             }
 
             console.log(`Rendering schedule starting from: ${startDate.toISOString()}`);
@@ -1211,7 +1419,6 @@ document.addEventListener('DOMContentLoaded', () => {
             monthNames.forEach((monthName, index) => {
                 const monthKey = monthName.toLowerCase().replace(/ /g, '_');
 
-                // *** FIXED: Improved payment check ***
                 let payment = null;
                 if (app.payments && typeof app.payments === 'object') {
                     payment = app.payments[monthKey];
@@ -1219,10 +1426,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const isPaid = payment?.paid === true;
 
-                console.log(`Month: ${monthName}, Key: ${monthKey}, Payment Data Found:`, payment, `Is Paid: ${isPaid}`);
-
                 const paymentCard = document.createElement('div');
                 paymentCard.className = `monthly-payment-card ${isPaid ? 'paid' : 'pending'}`;
+                
+                let paymentDetails = '';
+                if (payment?.paid) {
+                    paymentDetails = `
+                        <div class="payment-paid-date">Paid: ${payment.paidAt ? formatDate(payment.paidAt) : 'N/A'}</div>
+                        <div class="payment-reference">Ref: ${payment.reference || 'N/A'}</div>
+                    `;
+                } else {
+                    paymentDetails = `
+                        <div class="payment-expected">Expected: ${getDueDate(index, startDate)}</div>
+                    `;
+                }
+                
                 paymentCard.innerHTML = `
                     <div class="payment-month-header">
                         <h4>${monthName}</h4>
@@ -1232,45 +1450,104 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                     <div class="payment-month-details">
                         <div class="payment-amount">R${monthlyAmount.toFixed(2)}</div>
-                        <div class="payment-due">Due: ${getDueDate(index, startDate)}</div>
-                        ${isPaid ? `
-                        <div class="payment-paid-date">Paid: ${payment.paidAt ? formatDate(payment.paidAt) : 'N/A'}</div>
-                        <div class="payment-reference">Ref: ${payment.reference || 'N/A'}</div>
-                        ` : `
-                        <div class="payment-expected">Expected: ${getDueDate(index, startDate)}</div>
-                        `}
+                        ${paymentDetails}
                     </div>
                     <div class="payment-month-actions">
-                        ${isPaid ? `
-                        <button class="btn btn-outline view-payment-btn"
+                        ${!isPaid ? `
+                        <button class="btn btn-primary mark-as-paid-btn"
                                 data-month="${monthName}"
-                                data-amount="${payment.amount ? payment.amount.toFixed(2) : monthlyAmount.toFixed(2)}"
-                                data-date="${payment.paidAt || ''}"
-                                data-reference="${payment.reference || 'N/A'}">
-                            View Details
+                                data-amount="${monthlyAmount.toFixed(2)}">
+                            Mark as Paid
                         </button>
                         ` : `
-                        <span class="payment-awaiting">Awaiting Payment</span>
+                        <button class="btn btn-outline view-payment-btn"
+                                data-month="${monthName}"
+                                data-amount="${monthlyAmount.toFixed(2)}"
+                                data-date="${payment?.paidAt || ''}"
+                                data-reference="${payment?.reference || 'N/A'}">
+                            View Details
+                        </button>
                         `}
                     </div>
                 `;
                 monthlyPaymentGrid.appendChild(paymentCard);
             });
 
-            document.querySelectorAll('.view-payment-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const month = btn.getAttribute('data-month');
-                    const amount = btn.getAttribute('data-amount');
-                    const date = btn.getAttribute('data-date');
-                    const reference = btn.getAttribute('data-reference');
-
-                    showPaymentDetails('monthly', amount, month, date, reference);
-                });
-            });
-
         } else {
             console.log('Not rendering monthly schedule (not installment plan or zero subjects). Plan:', paymentPlan, 'Subjects:', subjectCount);
             monthlyScheduleCard.style.display = 'none';
+        }
+    }
+    
+    async function markPaymentAsPaid(month, amount) {
+        if (!currentApplication) {
+            showToast('No application selected', 'error');
+            return;
+        }
+        
+        const amountNum = parseFloat(amount);
+        
+        if (!confirm(`Mark ${month} payment of R${amountNum.toFixed(2)} as paid for ${currentApplication.firstName} ${currentApplication.lastName}?`)) {
+            return;
+        }
+        
+        try {
+            showLoading(true);
+            const { doc, updateDoc, serverTimestamp } = window.firebase;
+            const appRef = doc(window.firebase.db, "applications", currentApplication.id);
+            
+            const monthKey = month.toLowerCase().replace(/ /g, '_');
+            const paymentDate = new Date().toISOString();
+            
+            const updateData = {
+                [`payments.${monthKey}`]: {
+                    amount: amountNum,
+                    paid: true,
+                    paidAt: paymentDate,
+                    reference: `Admin marked as paid on ${formatDate(new Date())}`,
+                    method: 'admin',
+                    markedBy: adminName.textContent,
+                    markedAt: paymentDate
+                },
+                updatedAt: serverTimestamp()
+            };
+            
+            // Check if all payments are now complete
+            const paymentPlan = currentApplication.paymentPlan || 'sixMonths';
+            const monthsCount = paymentPlan === 'sixMonths' ? 6 : 10;
+            let startDate = currentApplication.paymentStartDate ? new Date(currentApplication.paymentStartDate) : new Date();
+            const monthNames = getMonthNames(monthsCount, startDate);
+            
+            // Check current payment status
+            let allPaid = true;
+            const payments = currentApplication.payments || {};
+            
+            monthNames.forEach(monthName => {
+                const key = monthName.toLowerCase().replace(/ /g, '_');
+                if (key !== monthKey && (!payments[key] || !payments[key].paid)) {
+                    allPaid = false;
+                }
+            });
+            
+            // This payment will be marked as paid
+            if (allPaid) {
+                updateData.paymentStatus = PAYMENT_STATUS.FULLY_PAID;
+            } else if (currentApplication.paymentStatus === PAYMENT_STATUS.PENDING) {
+                updateData.paymentStatus = PAYMENT_STATUS.APPLICATION_PAID;
+            }
+            
+            await updateDoc(appRef, updateData);
+            
+            showToast(`${month} payment marked as paid`, 'success');
+            
+            // Refresh the application view
+            viewApplication(currentApplication.id);
+            
+        } catch (error) {
+            console.error('Error marking payment as paid:', error);
+            showToast('Failed to mark payment as paid: ' + error.message, 'error');
+        } finally {
+            showLoading(false);
         }
     }
     
@@ -1289,7 +1566,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         modalStudentName.textContent = `${currentApplication.firstName} ${currentApplication.lastName}`;
         modalPaymentAmount.textContent = `R${parseFloat(amount).toFixed(2)}`;
-        modalPaymentMethod.textContent = 'Paystack';
+        modalPaymentMethod.textContent = 'Admin';
         modalPaymentReference.textContent = reference || 'N/A';
         modalPaymentStatus.textContent = 'Completed';
         
@@ -1306,6 +1583,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 modalPaymentFor.textContent = `${month} Installment`;
                 modalPaymentDate.textContent = formatDate(date);
                 break;
+            default:
+                modalPaymentFor.textContent = type || 'Payment';
+                modalPaymentDate.textContent = formatDate(date);
         }
         
         paymentDetailModal.style.display = 'flex';
@@ -1394,6 +1674,108 @@ document.addEventListener('DOMContentLoaded', () => {
         return statusItem;
     }
     
+    // Edit Application Functions
+    function openEditModal() {
+        if (!currentApplication) {
+            showToast('No application selected', 'error');
+            return;
+        }
+        
+        // Populate form fields
+        editFirstName.value = currentApplication.firstName || '';
+        editLastName.value = currentApplication.lastName || '';
+        editEmail.value = currentApplication.email || '';
+        editPhone.value = currentApplication.phone || '';
+        editGrade.value = currentApplication.grade || '8';
+        editSchool.value = currentApplication.school || '';
+        editPaymentPlan.value = currentApplication.paymentPlan || 'upfront';
+        editPaymentStatus.value = currentApplication.paymentStatus || PAYMENT_STATUS.PENDING;
+        editParentName.value = currentApplication.parentName || '';
+        editParentPhone.value = currentApplication.parentPhone || '';
+        
+        // Populate subjects
+        populateEditSubjects(currentApplication.grade, currentApplication.selectedSubjects);
+        
+        editApplicationModal.style.display = 'flex';
+    }
+    
+    function populateEditSubjects(grade, selectedSubjects = []) {
+        if (!editSubjectsContainer) return;
+        
+        editSubjectsContainer.innerHTML = '';
+        
+        const subjects = SUBJECTS_BY_GRADE[grade] || [];
+        
+        subjects.forEach(subject => {
+            const isSelected = selectedSubjects.includes(subject);
+            
+            const subjectItem = document.createElement('div');
+            subjectItem.className = 'subject-check-item';
+            subjectItem.innerHTML = `
+                <input type="checkbox" id="edit_subject_${subject.replace(/\s+/g, '_')}" 
+                       value="${subject}" ${isSelected ? 'checked' : ''}>
+                <label for="edit_subject_${subject.replace(/\s+/g, '_')}">${subject}</label>
+            `;
+            editSubjectsContainer.appendChild(subjectItem);
+        });
+    }
+    
+    // Add event listener for grade change in edit modal
+    if (editGrade) {
+        editGrade.addEventListener('change', () => {
+            populateEditSubjects(editGrade.value, []);
+        });
+    }
+    
+    async function saveEditedApplication() {
+        if (!currentApplication) return;
+        
+        const updatedData = {
+            firstName: editFirstName.value.trim(),
+            lastName: editLastName.value.trim(),
+            email: editEmail.value.trim(),
+            phone: editPhone.value.trim(),
+            grade: editGrade.value,
+            school: editSchool.value.trim(),
+            paymentPlan: editPaymentPlan.value,
+            paymentStatus: editPaymentStatus.value,
+            parentName: editParentName.value.trim(),
+            parentPhone: editParentPhone.value.trim(),
+            updatedAt: window.firebase.serverTimestamp ? window.firebase.serverTimestamp() : new Date()
+        };
+        
+        // Get selected subjects
+        const selectedSubjects = [];
+        document.querySelectorAll('#editSubjectsContainer input[type="checkbox"]:checked').forEach(checkbox => {
+            selectedSubjects.push(checkbox.value);
+        });
+        updatedData.selectedSubjects = selectedSubjects;
+        
+        if (!confirm('Save changes to this application?')) {
+            return;
+        }
+        
+        try {
+            showLoading(true);
+            const { doc, updateDoc } = window.firebase;
+            const appRef = doc(window.firebase.db, "applications", currentApplication.id);
+            
+            await updateDoc(appRef, updatedData);
+            
+            showToast('Application updated successfully', 'success');
+            editApplicationModal.style.display = 'none';
+            
+            // Refresh the application view
+            viewApplication(currentApplication.id);
+            
+        } catch (error) {
+            console.error('Error updating application:', error);
+            showToast('Failed to update application: ' + error.message, 'error');
+        } finally {
+            showLoading(false);
+        }
+    }
+    
     async function updateApplicationStatus() {
         if (!currentApplication || !checkFirebaseAvailability()) return;
         
@@ -1457,7 +1839,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     statusUpdates: app.statusUpdates ? app.statusUpdates.map(update => ({
                         ...update,
                         timestamp: update.timestamp.toISOString()
-                    })) : []
+                    })) : [],
+                    calculatedAmountPaid: app.calculatedAmountPaid
                 })),
                 timestamp: Date.now()
             }));
@@ -1530,129 +1913,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return y + (lines.length * increment);
     }
     
-    function loadAnalytics() {
-        const gradeCounts = {};
-        applications.forEach(app => {
-            const grade = app.grade;
-            gradeCounts[grade] = (gradeCounts[grade] || 0) + 1;
-        });
-        
-        const gradeChart = new Chart(document.getElementById('gradeChart'), {
-            type: 'bar',
-            data: {
-                labels: Object.keys(gradeCounts).map(g => `Grade ${g}`),
-                datasets: [{
-                    label: 'Applications by Grade',
-                    data: Object.values(gradeCounts),
-                    backgroundColor: '#2e5c89',
-                    borderColor: '#254267',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
-        });
-        
-        const statusCounts = {
-            [STATUS.SUBMITTED]: 0,
-            [STATUS.UNDER_REVIEW]: 0,
-            [STATUS.APPROVED]: 0,
-            [STATUS.REJECTED]: 0
-        };
-        
-        applications.forEach(app => {
-            const status = app.status || STATUS.SUBMITTED;
-            statusCounts[status]++;
-        });
-        
-        const statusChart = new Chart(document.getElementById('statusChart'), {
-            type: 'pie',
-            data: {
-                labels: ['Submitted', 'Under Review', 'Approved', 'Rejected'],
-                datasets: [{
-                    data: Object.values(statusCounts),
-                    backgroundColor: ['#3182ce', '#ed8936', '#48bb78', '#f56565'],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false
-            }
-        });
-        
-        const paymentCounts = {
-            [PAYMENT_STATUS.PENDING]: 0,
-            [PAYMENT_STATUS.APPLICATION_PAID]: 0,
-            [PAYMENT_STATUS.FULLY_PAID]: 0
-        };
-        
-        applications.forEach(app => {
-            const paymentStatus = app.paymentStatus || PAYMENT_STATUS.PENDING;
-            paymentCounts[paymentStatus]++;
-        });
-        
-        const paymentChart = new Chart(document.getElementById('paymentChart'), {
-            type: 'doughnut',
-            data: {
-                labels: ['Payment Pending', 'App Fee Paid', 'Fully Paid'],
-                datasets: [{
-                    data: Object.values(paymentCounts),
-                    backgroundColor: ['#f6ad55', '#4299e1', '#48bb78'],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false
-            }
-        });
-        
-        let totalRevenue = 0;
-        let receivedRevenue = 0;
-        
-        applications.forEach(app => {
-            const subjectCount = app.selectedSubjects ? app.selectedSubjects.length : 0;
-            const paymentPlan = app.paymentPlan || 'upfront';
-            const totalAmount = calculateTotalAmount(subjectCount, paymentPlan);
-            const amountPaid = calculateAmountPaid(app, totalAmount);
-            
-            totalRevenue += totalAmount;
-            receivedRevenue += amountPaid;
-        });
-        
-        const outstandingRevenue = totalRevenue - receivedRevenue;
-        
-        const revenueChart = new Chart(document.getElementById('revenueChart'), {
-            type: 'bar',
-            data: {
-                labels: ['Total Expected', 'Received', 'Outstanding'],
-                datasets: [{
-                    label: 'Revenue (R)',
-                    data: [totalRevenue, receivedRevenue, outstandingRevenue],
-                    backgroundColor: ['#2e5c89', '#48bb78', '#f56565'],
-                    borderWidth: 1
-            }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true
-                    }
-                }
-            }
-        });
-    }
-    
     function formatDate(date) {
         if (!date) return 'N/A';
         
@@ -1672,6 +1932,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
     
+    // Loading Functions
     function showLoading(show) {
         let loadingElement = document.getElementById('loadingIndicator');
         if (!loadingElement && show) {
@@ -1682,6 +1943,82 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.appendChild(loadingElement);
         } else if (loadingElement && !show) {
             loadingElement.remove();
+        }
+    }
+
+    function showDashboardLoading(show) {
+        let loadingElement = document.getElementById('dashboardLoadingIndicator');
+        
+        if (show) {
+            if (!loadingElement) {
+                loadingElement = document.createElement('div');
+                loadingElement.id = 'dashboardLoadingIndicator';
+                loadingElement.className = 'dashboard-loading';
+                loadingElement.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(255, 255, 255, 0.95);
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 9999;
+                `;
+                loadingElement.innerHTML = `
+                    <div style="text-align: center;">
+                        <i class="fas fa-spinner fa-spin fa-3x" style="color: var(--primary); margin-bottom: 20px;"></i>
+                        <h3 style="color: var(--primary); margin-bottom: 10px;">Loading Admin Portal</h3>
+                        <p style="color: var(--text-secondary);">Loading your dashboard...</p>
+                    </div>
+                `;
+                document.body.appendChild(loadingElement);
+            }
+            loadingElement.style.display = 'flex';
+        } else if (loadingElement) {
+            loadingElement.style.display = 'none';
+            setTimeout(() => {
+                if (loadingElement && loadingElement.parentNode) {
+                    loadingElement.parentNode.removeChild(loadingElement);
+                }
+            }, 500);
+        }
+    }
+
+    function showApplicationDetailLoading(show) {
+        const detailSection = document.getElementById('applicationDetailSection');
+        if (!detailSection) return;
+        
+        if (show) {
+            // Add loading overlay
+            let loadingOverlay = detailSection.querySelector('.detail-loading-overlay');
+            if (!loadingOverlay) {
+                loadingOverlay = document.createElement('div');
+                loadingOverlay.className = 'detail-loading-overlay';
+                loadingOverlay.style.cssText = `
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: rgba(255, 255, 255, 0.8);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 100;
+                `;
+                loadingOverlay.innerHTML = '<i class="fas fa-spinner fa-spin fa-2x" style="color: var(--primary);"></i>';
+                detailSection.style.position = 'relative';
+                detailSection.appendChild(loadingOverlay);
+            }
+            loadingOverlay.style.display = 'flex';
+        } else {
+            const loadingOverlay = detailSection.querySelector('.detail-loading-overlay');
+            if (loadingOverlay) {
+                loadingOverlay.style.display = 'none';
+            }
         }
     }
 
