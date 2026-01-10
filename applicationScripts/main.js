@@ -629,7 +629,7 @@ function calculateSubjectFees(subjectCount, paymentPlan) {
         subjects: {
             1: { upfront: 110000, sixMonths: 130000, tenMonths: 150000 },
             2: { upfront: 210000, sixMonths: 230000, tenMonths: 250000 },
-            3: { upfront: 310000, sixMonths: 330000, tenMonths: 350000 },
+            3: { upfront: 330000, sixMonths: 360000, tenMonths: 380000 },
             4: { upfront: 410000, sixMonths: 430000, tenMonths: 450000 }
         }
     };
