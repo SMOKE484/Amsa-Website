@@ -3,11 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>Alusani Academy - Admin Portal</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../styling/admin.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Add specific styles for the new features */
+        .subjects-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 10px;
+            margin-top: 5px;
+            padding: 15px;
+            background: #f8f9fa;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+        }
+        .subject-check-item {
+            display: flex;
+            align-items: center;
+            font-size: 0.9em;
+            color: #2d3748;
+        }
+        .subject-check-item input {
+            margin-right: 8px;
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+        .subject-check-item label {
+            cursor: pointer;
+            user-select: none;
+        }
+        .modal {
+            z-index: 2000; /* Ensure modals are above everything */
+        }
+    </style>
 </head>
 <body>
     <div class="admin-container">
@@ -47,16 +80,24 @@
             </header>
 
             <div class="dashboard-content">
-                <div class="sidebar">
+                <div class="sidebar" id="sidebar">
+                    <div class="sidebar-header">
+                        <button class="sidebar-toggle" id="sidebarToggle" title="Toggle Sidebar">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                    </div>
                     <div class="sidebar-menu">
-                        <a href="#" class="menu-item active" data-section="dashboard">
-                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        <a href="#" class="menu-item active" data-section="dashboard" data-tooltip="Dashboard">
+                            <i class="fas fa-tachometer-alt"></i>
+                            <span class="menu-item-text">Dashboard</span>
                         </a>
-                        <a href="#" class="menu-item" data-section="applications">
-                            <i class="fas fa-file-alt"></i> Applications
+                        <a href="#" class="menu-item" data-section="applications" data-tooltip="Applications">
+                            <i class="fas fa-file-alt"></i>
+                            <span class="menu-item-text">Applications</span>
                         </a>
-                        <a href="#" class="menu-item" data-section="payments">
-                            <i class="fas fa-credit-card"></i> Payment Tracking
+                        <a href="#" class="menu-item" data-section="payments" data-tooltip="Payment Tracking">
+                            <i class="fas fa-credit-card"></i>
+                            <span class="menu-item-text">Payment Tracking</span>
                         </a>
                     </div>
                 </div>
@@ -237,6 +278,10 @@
                             </button>
                             <h2>Application Details</h2>
                             <div class="application-actions">
+                                <button class="btn btn-outline" id="editApplicationBtn">
+                                    <i class="fas fa-edit"></i> Edit Details
+                                </button>
+                                
                                 <button class="btn btn-outline" id="downloadApplicationBtn">
                                     <i class="fas fa-download"></i> Download PDF
                                 </button>
@@ -378,7 +423,7 @@
                                         </div>
                                     </div>
                                     <div id="paymentHistory" class="payment-history-list">
-                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -471,6 +516,88 @@
         </div>
     </div>
 
+    <div id="editApplicationModal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>Edit Application Details</h3>
+                <span class="close" id="closeEditModal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="editApplicationForm">
+                    <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group">
+                            <label>First Name</label>
+                            <input type="text" id="editFirstName" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Last Name</label>
+                            <input type="text" id="editLastName" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" id="editEmail" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Phone</label>
+                            <input type="text" id="editPhone" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Grade</label>
+                            <select id="editGrade" class="form-control">
+                                <option value="8">Grade 8</option>
+                                <option value="9">Grade 9</option>
+                                <option value="10">Grade 10</option>
+                                <option value="11">Grade 11</option>
+                                <option value="12">Grade 12</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>School</label>
+                            <input type="text" id="editSchool" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Payment Plan (Admin Override)</label>
+                            <select id="editPaymentPlan" class="form-control">
+                                <option value="upfront">Upfront</option>
+                                <option value="sixMonths">6 Months</option>
+                                <option value="tenMonths">10 Months</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Payment Status (Admin Override)</label>
+                            <select id="editPaymentStatus" class="form-control">
+                                <option value="pending">Pending</option>
+                                <option value="application_paid">Application Paid</option>
+                                <option value="fully_paid">Fully Paid</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group form-full" style="margin-top: 15px;">
+                        <label>Subjects</label>
+                        <div id="editSubjectsContainer" class="subjects-grid">
+                            </div>
+                    </div>
+
+                    <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 15px;">
+                        <div class="form-group">
+                            <label>Parent Name</label>
+                            <input type="text" id="editParentName" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label>Parent Phone</label>
+                            <input type="text" id="editParentPhone" class="form-control">
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelEditBtn">Cancel</button>
+                <button class="btn btn-primary" id="saveEditBtn">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
         import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -522,6 +649,293 @@
             arrayUnion,
             onSnapshot
         };
+    </script>
+    <script>
+        // Enhanced sidebar collapse functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const mainContent = document.querySelector('.main-content');
+            let mobileToggle = document.getElementById('mobileSidebarToggle');
+            
+            // Create mobile toggle button if it doesn't exist
+            if (!mobileToggle) {
+                mobileToggle = document.createElement('button');
+                mobileToggle.id = 'mobileSidebarToggle';
+                mobileToggle.className = 'mobile-toggle';
+                mobileToggle.innerHTML = '<i class="fas fa-bars"></i>';
+                mobileToggle.style.cssText = `
+                    position: fixed;
+                    bottom: 20px;
+                    right: 20px;
+                    width: 50px;
+                    height: 50px;
+                    border-radius: 50%;
+                    background: var(--primary);
+                    color: white;
+                    border: none;
+                    cursor: pointer;
+                    z-index: 1001;
+                    box-shadow: var(--shadow-md);
+                    display: none;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 1.2rem;
+                    transition: all 0.3s ease;
+                `;
+                document.body.appendChild(mobileToggle);
+            }
+            
+            // Check if we're on mobile
+            function isMobile() {
+                return window.innerWidth <= 768;
+            }
+            
+            // Handle sidebar state initialization
+            function initializeSidebar() {
+                // Load saved state or default to collapsed on desktop
+                const savedState = localStorage.getItem('sidebarCollapsed');
+                const shouldCollapse = savedState !== null ? savedState === 'true' : !isMobile();
+                
+                if (isMobile()) {
+                    sidebar.classList.remove('collapsed');
+                    sidebar.classList.remove('open');
+                    mobileToggle.style.display = 'none';
+                    mainContent.style.maxWidth = '100%';
+                    mainContent.style.marginLeft = '0';
+                } else {
+                    if (shouldCollapse) {
+                        sidebar.classList.add('collapsed');
+                        mainContent.style.maxWidth = `calc(100% - ${getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width-collapsed')})`;
+                        mainContent.style.marginLeft = '0';
+                    } else {
+                        sidebar.classList.remove('collapsed');
+                        mainContent.style.maxWidth = `calc(100% - ${getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width')})`;
+                        mainContent.style.marginLeft = '0';
+                    }
+                    mobileToggle.style.display = 'none';
+                }
+                
+                // Update localStorage
+                if (!isMobile()) {
+                    localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+                }
+            }
+            
+            // Toggle sidebar function
+            function toggleSidebar() {
+                if (isMobile()) {
+                    sidebar.classList.toggle('open');
+                    // Prevent body scroll when sidebar is open on mobile
+                    document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+                } else {
+                    sidebar.classList.toggle('collapsed');
+                    
+                    // Animate main content width
+                    if (sidebar.classList.contains('collapsed')) {
+                        mainContent.style.maxWidth = `calc(100% - ${getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width-collapsed')})`;
+                    } else {
+                        mainContent.style.maxWidth = `calc(100% - ${getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width')})`;
+                    }
+                    
+                    // Save state
+                    localStorage.setItem('sidebarCollapsed', sidebar.classList.contains('collapsed'));
+                    
+                    // Dispatch custom event for other components
+                    const event = new CustomEvent('sidebarToggle', {
+                        detail: { collapsed: sidebar.classList.contains('collapsed') }
+                    });
+                    document.dispatchEvent(event);
+                }
+            }
+            
+            // Handle window resize
+            function handleResize() {
+                if (isMobile()) {
+                    sidebar.classList.remove('collapsed');
+                    mobileToggle.style.display = 'flex';
+                    mainContent.style.maxWidth = '100%';
+                    mainContent.style.marginLeft = '0';
+                    
+                    // Close sidebar on resize to mobile if it was open
+                    if (sidebar.classList.contains('open')) {
+                        sidebar.classList.remove('open');
+                        document.body.style.overflow = '';
+                    }
+                } else {
+                    mobileToggle.style.display = 'none';
+                    document.body.style.overflow = '';
+                    
+                    // Restore saved state on desktop
+                    const savedState = localStorage.getItem('sidebarCollapsed');
+                    const shouldCollapse = savedState !== null ? savedState === 'true' : true;
+                    
+                    if (shouldCollapse) {
+                        sidebar.classList.add('collapsed');
+                        mainContent.style.maxWidth = `calc(100% - ${getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width-collapsed')})`;
+                    } else {
+                        sidebar.classList.remove('collapsed');
+                        mainContent.style.maxWidth = `calc(100% - ${getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width')})`;
+                    }
+                }
+            }
+            
+            // Event Listeners
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    toggleSidebar();
+                });
+            }
+            
+            if (mobileToggle) {
+                mobileToggle.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    toggleSidebar();
+                });
+            }
+            
+            // Close sidebar when clicking outside on mobile
+            document.addEventListener('click', function(e) {
+                if (isMobile() && 
+                    sidebar.classList.contains('open') && 
+                    !sidebar.contains(e.target) && 
+                    !mobileToggle.contains(e.target) &&
+                    !e.target.closest('.sidebar-toggle')) {
+                    sidebar.classList.remove('open');
+                    document.body.style.overflow = '';
+                }
+            });
+            
+            // Close sidebar on escape key
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+                    sidebar.classList.remove('open');
+                    document.body.style.overflow = '';
+                }
+            });
+            
+            // Handle menu item clicks on mobile
+            const menuItems = document.querySelectorAll('.menu-item');
+            menuItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    if (isMobile() && sidebar.classList.contains('open')) {
+                        sidebar.classList.remove('open');
+                        document.body.style.overflow = '';
+                    }
+                });
+            });
+            
+            // Initialize on load
+            initializeSidebar();
+            
+            // Add resize listener
+            window.addEventListener('resize', handleResize);
+            
+            // Add transition end listener for smooth animations
+            sidebar.addEventListener('transitionend', function(e) {
+                if (e.propertyName === 'width') {
+                    // Force a reflow to ensure smooth transitions
+                    void sidebar.offsetWidth;
+                }
+            });
+            
+            // Add touch support for mobile
+            let touchStartX = 0;
+            let touchEndX = 0;
+            
+            document.addEventListener('touchstart', function(e) {
+                touchStartX = e.changedTouches[0].screenX;
+            }, { passive: true });
+            
+            document.addEventListener('touchend', function(e) {
+                touchEndX = e.changedTouches[0].screenX;
+                handleSwipe();
+            }, { passive: true });
+            
+            function handleSwipe() {
+                if (!isMobile()) return;
+                
+                const swipeThreshold = 50;
+                const swipeDistance = touchEndX - touchStartX;
+                
+                // Swipe right to open
+                if (swipeDistance > swipeThreshold && touchStartX < 50) {
+                    sidebar.classList.add('open');
+                    document.body.style.overflow = 'hidden';
+                }
+                // Swipe left to close
+                else if (swipeDistance < -swipeThreshold && sidebar.classList.contains('open')) {
+                    sidebar.classList.remove('open');
+                    document.body.style.overflow = '';
+                }
+            }
+        });
+
+        // Enhanced collapsible sections
+        document.addEventListener('DOMContentLoaded', function() {
+            const collapsibleHeaders = document.querySelectorAll('.collapsible-header');
+            
+            collapsibleHeaders.forEach(header => {
+                header.addEventListener('click', function() {
+                    const targetId = this.getAttribute('data-target');
+                    const targetContent = document.getElementById(targetId);
+                    
+                    if (targetContent) {
+                        this.classList.toggle('collapsed');
+                        
+                        // Calculate actual content height
+                        if (this.classList.contains('collapsed')) {
+                            targetContent.style.maxHeight = '0';
+                        } else {
+                            targetContent.style.maxHeight = targetContent.scrollHeight + 'px';
+                            
+                            // Update height after content loads
+                            setTimeout(() => {
+                                targetContent.style.maxHeight = targetContent.scrollHeight + 'px';
+                            }, 50);
+                        }
+                    }
+                });
+                
+                // Initialize state
+                const targetId = header.getAttribute('data-target');
+                const targetContent = document.getElementById(targetId);
+                if (targetContent && header.classList.contains('collapsed')) {
+                    targetContent.style.maxHeight = '0';
+                }
+            });
+        });
+
+        // Density toggle functionality (optional)
+        document.addEventListener('DOMContentLoaded', function() {
+            const densityToggle = document.createElement('button');
+            densityToggle.id = 'densityToggle';
+            densityToggle.className = 'btn btn-sm btn-outline';
+            densityToggle.innerHTML = '<i class="fas fa-compress-alt"></i> Compact View';
+            densityToggle.style.cssText = 'position: fixed; bottom: 20px; left: 20px; z-index: 1000; display: none;';
+            document.body.appendChild(densityToggle);
+            
+            // Show on desktop only
+            function checkDensityToggle() {
+                if (window.innerWidth > 768) {
+                    densityToggle.style.display = 'flex';
+                } else {
+                    densityToggle.style.display = 'none';
+                    document.body.classList.remove('density-compact');
+                }
+            }
+            
+            densityToggle.addEventListener('click', function() {
+                document.body.classList.toggle('density-compact');
+                densityToggle.innerHTML = document.body.classList.contains('density-compact') 
+                    ? '<i class="fas fa-expand-alt"></i> Normal View' 
+                    : '<i class="fas fa-compress-alt"></i> Compact View';
+            });
+            
+            checkDensityToggle();
+            window.addEventListener('resize', checkDensityToggle);
+        });
     </script>
     <script src="../scripts/admin.js"></script>
 </body>
