@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const FEE_STRUCTURE = {
-        1: { upfront: 1100, sixMonths: 1300, tenMonths: 1500 },
+        1: { upfront: 1400, sixMonths: 1600, tenMonths: 2000 },
         2: { upfront: 2100, sixMonths: 2300, tenMonths: 2500 },
         3: { upfront: 3300, sixMonths: 3600, tenMonths: 3800 },
         4: { upfront: 4100, sixMonths: 4300, tenMonths: 4500 }
