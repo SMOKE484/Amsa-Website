@@ -627,7 +627,7 @@ async function showPaymentPlanConfirmationModal(applicationData, paymentPlan) {
 function calculateSubjectFees(subjectCount, paymentPlan) {
     const FEE_STRUCTURE_LOCAL = {
         subjects: {
-            1: { upfront: 110000, sixMonths: 130000, tenMonths: 150000 },
+            1: { upfront: 140000, sixMonths: 160000, tenMonths: 200000 },
             2: { upfront: 210000, sixMonths: 230000, tenMonths: 250000 },
             3: { upfront: 330000, sixMonths: 360000, tenMonths: 380000 },
             4: { upfront: 410000, sixMonths: 430000, tenMonths: 450000 }
