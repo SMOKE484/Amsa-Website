@@ -7,9 +7,9 @@ import { showSection } from './ui.js';
 const FEE_STRUCTURE = {
     subjects: {
         1: {
-            upfront: 110000,
-            sixMonths: 130000,
-            tenMonths: 150000
+            upfront: 140000,
+            sixMonths: 160000,
+            tenMonths: 200000
         },
         2: {
             upfront: 210000,
