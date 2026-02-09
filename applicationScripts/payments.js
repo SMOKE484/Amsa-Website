@@ -11,9 +11,9 @@ const FEE_STRUCTURE = {
     },
     subjects: {
         1: {
-            upfront: 110000, // R1100.00
-            sixMonths: 130000, // R1300.00
-            tenMonths: 150000 // R1500.00
+            upfront: 140000,
+            sixMonths: 160000,
+            tenMonths: 200000
         },
         2: {
             upfront: 210000, // R2100.00
