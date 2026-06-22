@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Under Maintenance — Alusani Maths and Science Academy</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --navy: #2e5c89;
+            --teal: #44c0b6;
+            --light: #f9f9f9;
+            --dark: #333333;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--light);
+            color: var(--dark);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── Top bar ── */
+        .topbar {
+            background: var(--navy);
+            padding: 16px 32px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .topbar img {
+            height: 44px;
+            width: auto;
+        }
+
+        .topbar-name {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: #fff;
+            line-height: 1.2;
+        }
+
+        .topbar-name span {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 400;
+            color: rgba(255,255,255,0.65);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        /* ── Main content ── */
+        .page {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 48px 24px;
+        }
+
+        .card {
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 8px 40px rgba(46, 92, 137, 0.10);
+            max-width: 580px;
+            width: 100%;
+            padding: 56px 48px;
+            text-align: center;
+        }
+
+        /* Animated cog icon */
+        .icon-wrap {
+            width: 96px;
+            height: 96px;
+            background: linear-gradient(135deg, var(--navy) 0%, var(--teal) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 32px;
+            box-shadow: 0 4px 20px rgba(68, 192, 182, 0.30);
+        }
+
+        .icon-wrap i {
+            font-size: 2.4rem;
+            color: #fff;
+            animation: spin 6s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to   { transform: rotate(360deg); }
+        }
+
+        .badge {
+            display: inline-block;
+            background: rgba(68, 192, 182, 0.12);
+            color: var(--teal);
+            font-size: 0.78rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 4px 14px;
+            border-radius: 20px;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--navy);
+            line-height: 1.2;
+            margin-bottom: 16px;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: #666;
+            line-height: 1.7;
+            margin-bottom: 36px;
+        }
+
+        /* Progress bar */
+        .progress-wrap {
+            background: #eef2f7;
+            border-radius: 50px;
+            height: 6px;
+            margin-bottom: 36px;
+            overflow: hidden;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 70%;
+            background: linear-gradient(90deg, var(--navy), var(--teal));
+            border-radius: 50px;
+            animation: pulse 2.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.6; }
+        }
+
+        /* Info tiles */
+        .tiles {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 36px;
+        }
+
+        .tile {
+            background: #f7fafd;
+            border: 1px solid #e2eaf3;
+            border-radius: 12px;
+            padding: 20px 16px;
+        }
+
+        .tile i {
+            font-size: 1.3rem;
+            color: var(--teal);
+            margin-bottom: 8px;
+        }
+
+        .tile h4 {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--navy);
+            margin-bottom: 4px;
+        }
+
+        .tile p {
+            font-size: 0.8rem;
+            color: #888;
+            line-height: 1.5;
+        }
+
+        /* Contact */
+        .contact {
+            background: linear-gradient(135deg, rgba(46,92,137,0.06), rgba(68,192,182,0.06));
+            border: 1px solid rgba(68,192,182,0.25);
+            border-radius: 12px;
+            padding: 20px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            text-align: left;
+        }
+
+        .contact i {
+            font-size: 1.5rem;
+            color: var(--navy);
+            flex-shrink: 0;
+        }
+
+        .contact p {
+            font-size: 0.85rem;
+            color: #555;
+            line-height: 1.5;
+        }
+
+        .contact a {
+            color: var(--teal);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .contact a:hover {
+            text-decoration: underline;
+        }
+
+        /* ── Footer ── */
+        footer {
+            background: var(--navy);
+            color: rgba(255,255,255,0.55);
+            text-align: center;
+            padding: 18px 24px;
+            font-size: 0.8rem;
+        }
+
+        footer strong {
+            color: #fff;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 520px) {
+            .card {
+                padding: 40px 24px;
+            }
+
+            h1 {
+                font-size: 1.6rem;
+            }
+
+            .tiles {
+                grid-template-columns: 1fr;
+            }
+
+            .contact {
+                flex-direction: column;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="topbar">
+        <img src="../images/amsaLogo.png" alt="AMSA Logo">
+        <div class="topbar-name">
+            Alusani Academy
+            <span>Maths &amp; Science</span>
+        </div>
+    </div>
+
+    <main class="page">
+        <div class="card">
+
+            <div class="icon-wrap">
+                <i class="fas fa-cog"></i>
+            </div>
+
+            <div class="badge">Scheduled Maintenance</div>
+
+            <h1>We'll be back shortly</h1>
+
+            <p class="subtitle">
+                Our student portal and admin systems are currently undergoing
+                scheduled maintenance to improve your experience.
+                Please check back soon.
+            </p>
+
+            <div class="progress-wrap">
+                <div class="progress-bar"></div>
+            </div>
+
+            <div class="tiles">
+                <div class="tile">
+                    <i class="fas fa-tools"></i>
+                    <h4>What's happening?</h4>
+                    <p>System upgrades and improvements are being applied.</p>
+                </div>
+                <div class="tile">
+                    <i class="fas fa-clock"></i>
+                    <h4>How long?</h4>
+                    <p>We expect to be back up very soon. Thank you for your patience.</p>
+                </div>
+                <div class="tile">
+                    <i class="fas fa-shield-alt"></i>
+                    <h4>Your data is safe</h4>
+                    <p>All application and payment records are secure and intact.</p>
+                </div>
+                <div class="tile">
+                    <i class="fas fa-graduation-cap"></i>
+                    <h4>Applications</h4>
+                    <p>You can still browse our programs and contact us in the meantime.</p>
+                </div>
+            </div>
+
+            <div class="contact">
+                <i class="fas fa-envelope"></i>
+                <p>
+                    Need urgent assistance? Email us at
+                    <a href="mailto:alusaniacademy@gmail.com">alusaniacademy@gmail.com</a>
+                    and we'll get back to you as soon as possible.
+                </p>
+            </div>
+
+        </div>
+    </main>
+
+    <footer>
+        &copy; <span id="yr"></span> <strong>Alusani Maths and Science Academy</strong> &mdash; All rights reserved.
+    </footer>
+
+    <script>
+        document.getElementById('yr').textContent = new Date().getFullYear();
+    </script>
+
+</body>
+</html>
