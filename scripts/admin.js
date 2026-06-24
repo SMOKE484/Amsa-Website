@@ -33,6 +33,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const APPLICATIONS_PER_PAGE = 10;
     const CACHE_TTL = 3600000; // 1 hour in ms
 
+    function sanitizeHtml(str) {
+        if (str == null) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     // DOM Elements
     const loginSection = document.getElementById('loginSection');
     const dashboardSection = document.getElementById('dashboardSection');
@@ -462,7 +472,67 @@ document.addEventListener('DOMContentLoaded', () => {
             updatePagination();
         } else if (sectionId === 'payments') {
             renderPayments();
+        } else if (sectionId === 'analytics') {
+            initializeAnalyticsCharts();
         }
+    }
+
+    function initializeAnalyticsCharts() {
+        if (!window.Chart || !applications.length) return;
+
+        const gradeCounts = {};
+        const statusCounts = {};
+        const paymentCounts = {};
+        const monthlyRevenue = {};
+
+        applications.forEach(app => {
+            const grade = `Grade ${app.grade || '?'}`;
+            gradeCounts[grade] = (gradeCounts[grade] || 0) + 1;
+
+            const status = app.status || 'unknown';
+            statusCounts[status] = (statusCounts[status] || 0) + 1;
+
+            const payStatus = app.paymentStatus || 'unknown';
+            paymentCounts[payStatus] = (paymentCounts[payStatus] || 0) + 1;
+
+            if (app.payments) {
+                Object.values(app.payments).forEach(p => {
+                    if (p.paid && p.paidAt) {
+                        const key = new Date(p.paidAt).toLocaleString('default', { month: 'short', year: 'numeric' });
+                        monthlyRevenue[key] = (monthlyRevenue[key] || 0) + (p.amount || 0);
+                    }
+                });
+            }
+        });
+
+        ['gradeChart', 'statusChart', 'paymentChart', 'revenueChart'].forEach(id => {
+            const existing = Chart.getChart(id);
+            if (existing) existing.destroy();
+        });
+
+        new Chart(document.getElementById('gradeChart'), {
+            type: 'bar',
+            data: { labels: Object.keys(gradeCounts), datasets: [{ label: 'Applications', data: Object.values(gradeCounts), backgroundColor: '#4e73df' }] },
+            options: { responsive: true, plugins: { legend: { display: false } } }
+        });
+
+        new Chart(document.getElementById('statusChart'), {
+            type: 'pie',
+            data: { labels: Object.keys(statusCounts), datasets: [{ data: Object.values(statusCounts) }] },
+            options: { responsive: true }
+        });
+
+        new Chart(document.getElementById('paymentChart'), {
+            type: 'doughnut',
+            data: { labels: Object.keys(paymentCounts), datasets: [{ data: Object.values(paymentCounts) }] },
+            options: { responsive: true }
+        });
+
+        new Chart(document.getElementById('revenueChart'), {
+            type: 'line',
+            data: { labels: Object.keys(monthlyRevenue), datasets: [{ label: 'Revenue (R)', data: Object.values(monthlyRevenue), borderColor: '#1cc88a', fill: false }] },
+            options: { responsive: true }
+        });
     }
     
     // Setup real-time listeners if available
@@ -948,6 +1018,14 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('detailBalance').textContent = `R${balance.toFixed(2)}`;
         document.getElementById('detailBalance').style.color = balance > 0 ? 'var(--danger)' : 'var(--success)';
 
+        const lastPaymentDateEl = document.getElementById('detailLastPaymentDate');
+        if (lastPaymentDateEl) {
+            const lpd = currentApplication.lastPaymentDate
+                ? formatDate(new Date(currentApplication.lastPaymentDate))
+                : getLastPaymentDate(currentApplication);
+            lastPaymentDateEl.textContent = lpd || 'N/A';
+        }
+
         // Subjects
         const subjectsContainer = document.getElementById('detailSubjects');
         subjectsContainer.innerHTML = '';
@@ -1142,39 +1220,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let amountPaid = 0;
 
-        // Check structured payments
+        // Application fee (R200) is tracked via paymentStatus, not the payments map
+        if (app.paymentStatus === PAYMENT_STATUS.APPLICATION_PAID) {
+            amountPaid += 200;
+        }
+
+        // All entries in app.payments are tuition payments
         if (app.payments && Object.keys(app.payments).length > 0) {
-            console.log(`Calculating amount paid for ${app.firstName} ${app.lastName} from payments object:`, app.payments);
-            
             Object.values(app.payments).forEach(payment => {
-                console.log("Checking payment:", payment);
-                
-                // Skip application fees - only count tuition payments
-                // Check for application fee by amount (R200) or type
-                const isAppFee = (payment.amount === 200 && payment.type !== 'monthly') || 
-                                payment.type === 'application' || 
-                                (payment.description && payment.description.includes('Application')) ||
-                                (payment.amount === 200 && (!payment.paidAt || payment.type === 'application'));
-                
-                // Check if this is a valid monthly payment (has monthKey structure)
-                const isMonthlyPayment = payment.paid === true && 
-                                       payment.amount && 
-                                       payment.amount > 200; // Monthly payments should be > R200
-                
-                if (payment.paid && payment.amount && !isAppFee && isMonthlyPayment) {
-                    console.log(`Adding tuition payment amount: R${payment.amount}`);
-                    amountPaid += Number(payment.amount);
-                } else if (isAppFee && payment.paid) {
-                    console.log(`Skipping application fee: R${payment.amount}`);
-                } else {
-                    console.log(`Skipping payment (not paid or not valid):`, payment);
+                if (payment.paid && typeof payment.amount === 'number') {
+                    amountPaid += payment.amount;
                 }
             });
-        } else {
-            console.log(`No payments object found for ${app.firstName} ${app.lastName}`);
         }
-        
-        console.log(`Total tuition amount paid calculated for ${app.firstName} ${app.lastName}: R${amountPaid.toFixed(2)}`);
+
         return amountPaid;
     }
     
@@ -1306,21 +1365,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 paymentItem.innerHTML = `
                     <div class="payment-info">
                         <div class="payment-header">
-                            <span class="payment-title">${monthName} Installment</span>
+                            <span class="payment-title">${sanitizeHtml(monthName)} Installment</span>
                             <span class="payment-amount">R${payment.amount?.toFixed(2) || '0.00'}</span>
                         </div>
                         <div class="payment-details">
-                            <span class="payment-date">${payment.paid ? `Paid on ${formatDate(payment.paidAt)}` : 'Pending Payment'}</span>
+                            <span class="payment-date">${payment.paid ? `Paid on ${sanitizeHtml(formatDate(payment.paidAt))}` : 'Pending Payment'}</span>
                             <span class="payment-status ${payment.paid ? 'paid' : 'pending'}">${payment.paid ? 'Paid' : 'Pending'}</span>
                         </div>
                     </div>
                     ${payment.paid ? `
-                    <button class="btn btn-outline view-payment-details" 
-                            data-type="monthly" 
-                            data-month="${monthName}"
+                    <button class="btn btn-outline view-payment-details"
+                            data-type="monthly"
+                            data-month="${sanitizeHtml(monthName)}"
                             data-amount="${payment.amount}"
-                            data-date="${payment.paidAt}"
-                            data-reference="${payment.reference || 'N/A'}">
+                            data-date="${sanitizeHtml(payment.paidAt)}"
+                            data-reference="${sanitizeHtml(payment.reference || 'N/A')}">
                         <i class="fas fa-info-circle"></i> Details
                     </button>
                     ` : '<span class="payment-pending">Awaiting Payment</span>'}
@@ -1432,8 +1491,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 let paymentDetails = '';
                 if (payment?.paid) {
                     paymentDetails = `
-                        <div class="payment-paid-date">Paid: ${payment.paidAt ? formatDate(payment.paidAt) : 'N/A'}</div>
-                        <div class="payment-reference">Ref: ${payment.reference || 'N/A'}</div>
+                        <div class="payment-paid-date">Paid: ${payment.paidAt ? sanitizeHtml(formatDate(payment.paidAt)) : 'N/A'}</div>
+                        <div class="payment-reference">Ref: ${sanitizeHtml(payment.reference || 'N/A')}</div>
                     `;
                 } else {
                     paymentDetails = `
@@ -1461,10 +1520,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         </button>
                         ` : `
                         <button class="btn btn-outline view-payment-btn"
-                                data-month="${monthName}"
+                                data-month="${sanitizeHtml(monthName)}"
                                 data-amount="${monthlyAmount.toFixed(2)}"
-                                data-date="${payment?.paidAt || ''}"
-                                data-reference="${payment?.reference || 'N/A'}">
+                                data-date="${sanitizeHtml(payment?.paidAt || '')}"
+                                data-reference="${sanitizeHtml(payment?.reference || 'N/A')}">
                             View Details
                         </button>
                         `}
@@ -1509,33 +1568,29 @@ document.addEventListener('DOMContentLoaded', () => {
                     markedBy: adminName.textContent,
                     markedAt: paymentDate
                 },
+                lastPaymentDate: paymentDate,
                 updatedAt: serverTimestamp()
             };
             
-            // Check if all payments are now complete
-            const paymentPlan = currentApplication.paymentPlan || 'sixMonths';
-            const monthsCount = paymentPlan === 'sixMonths' ? 6 : 10;
-            let startDate = currentApplication.paymentStartDate ? new Date(currentApplication.paymentStartDate) : new Date();
-            const monthNames = getMonthNames(monthsCount, startDate);
-            
-            // Check current payment status
-            let allPaid = true;
-            const payments = currentApplication.payments || {};
-            
-            monthNames.forEach(monthName => {
-                const key = monthName.toLowerCase().replace(/ /g, '_');
-                if (key !== monthKey && (!payments[key] || !payments[key].paid)) {
-                    allPaid = false;
-                }
-            });
-            
-            // This payment will be marked as paid
+            // Fresh read before deciding status — avoids stale in-memory data
+            const freshSnap = await window.firebase.getDoc(appRef);
+            let allPaid = false;
+            if (freshSnap.exists()) {
+                const freshData = freshSnap.data();
+                const freshPayments = { ...(freshData.payments || {}), [monthKey]: { paid: true } };
+                const plan = freshData.paymentPlan || currentApplication.paymentPlan || 'sixMonths';
+                const count = plan === 'sixMonths' ? 6 : 10;
+                const start = freshData.paymentStartDate ? new Date(freshData.paymentStartDate) : new Date();
+                allPaid = getMonthNames(count, start).every(m =>
+                    freshPayments[m.toLowerCase().replace(/ /g, '_')]?.paid === true
+                );
+            }
             if (allPaid) {
                 updateData.paymentStatus = PAYMENT_STATUS.FULLY_PAID;
             } else if (currentApplication.paymentStatus === PAYMENT_STATUS.PENDING) {
                 updateData.paymentStatus = PAYMENT_STATUS.APPLICATION_PAID;
             }
-            
+
             await updateDoc(appRef, updateData);
             
             showToast(`${month} payment marked as paid`, 'success');
@@ -1723,7 +1778,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add event listener for grade change in edit modal
     if (editGrade) {
         editGrade.addEventListener('change', () => {
-            populateEditSubjects(editGrade.value, []);
+            populateEditSubjects(editGrade.value, currentApplication?.selectedSubjects || []);
         });
     }
     
@@ -1744,13 +1799,25 @@ document.addEventListener('DOMContentLoaded', () => {
             updatedAt: window.firebase.serverTimestamp ? window.firebase.serverTimestamp() : new Date()
         };
         
+        // Validate required fields
+        if (!updatedData.firstName || !updatedData.lastName || !updatedData.email || !updatedData.phone) {
+            showToast('First name, last name, email, and phone are required', 'error');
+            return;
+        }
+
         // Get selected subjects
         const selectedSubjects = [];
         document.querySelectorAll('#editSubjectsContainer input[type="checkbox"]:checked').forEach(checkbox => {
             selectedSubjects.push(checkbox.value);
         });
+
+        if (selectedSubjects.length === 0) {
+            showToast('At least one subject must be selected', 'error');
+            return;
+        }
+
         updatedData.selectedSubjects = selectedSubjects;
-        
+
         if (!confirm('Save changes to this application?')) {
             return;
         }
@@ -1780,6 +1847,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!currentApplication || !checkFirebaseAvailability()) return;
         
         const newStatus = statusChangeSelect.value;
+        if (newStatus === currentApplication.status) {
+            showToast(`Status is already set to ${newStatus}`, 'info');
+            return;
+        }
         if (!confirm(`Are you sure you want to change the status to ${newStatus}?`)) {
             return;
         }

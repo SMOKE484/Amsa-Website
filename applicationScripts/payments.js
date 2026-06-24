@@ -97,6 +97,16 @@ export async function initiatePaystackPayment(applicationData, paymentType = 'ap
         return false;
     }
 
+    if (paymentType === 'application') {
+        const appRef = window.firebaseDoc(window.firebaseDb, 'applications', applicationData.id);
+        const freshDoc = await window.firebaseGetDoc(appRef);
+        if (freshDoc.exists() && freshDoc.data().paymentStatus === 'application_paid') {
+            showToast('Application fee already paid. Loading your dashboard...', 'info');
+            if (window.loadDashboardData) window.loadDashboardData(applicationData.id, true);
+            return false;
+        }
+    }
+
     try {
         paymentState.isProcessing = true;
         paymentState.currentPayment = { applicationData, paymentType };
@@ -113,9 +123,9 @@ export async function initiatePaystackPayment(applicationData, paymentType = 'ap
             throw new Error('No subjects selected for payment');
         }
 
-        // Paystack TEST credentials
+        // Paystack LIVE public key
         const publicKey = 'pk_live_fc691ef3afbc4a51b790b602bbe80bb2510d49e4';
-        
+
         // Calculate payment amount based on payment type
         let amount, itemName, metadata;
         
@@ -274,7 +284,14 @@ function isValidEmail(email) {
 async function handlePaystackCallback(response, applicationData, paymentType) {
     try {
         console.log('Paystack Payment Response:', response);
-        
+
+        if (!response || typeof response !== 'object' || !response.reference) {
+            showToast('Invalid payment response. Please contact support.', 'error');
+            paymentState.isProcessing = false;
+            showPaymentLoading(false);
+            return;
+        }
+
         // Verify payment was successful
         const paymentVerified = await verifyPaystackPayment(response.reference);
         
@@ -315,7 +332,7 @@ async function handlePaystackCallback(response, applicationData, paymentType) {
                 showToast('Subject fees paid successfully! Your enrollment is complete.', 'success');
                 await updateApplicationPaymentStatus(applicationData.id, 'fully_paid');
                 setTimeout(() => {
-                    window.location.href = '/applications.html?payment=success&reference=' + response.reference;
+                    if (window.loadDashboardData) window.loadDashboardData(applicationData.id);
                 }, 2000);
             }
             
@@ -329,9 +346,9 @@ async function handlePaystackCallback(response, applicationData, paymentType) {
         }
     } catch (error) {
         console.error('Error handling Paystack callback:', error);
-        showToast('Payment completed. Processing your application...', 'info');
+        showToast('Payment processing error. Please contact support if you were charged.', 'error');
         paymentState.isProcessing = false;
-        
+
         // Fallback redirect
         setTimeout(() => {
             window.location.href = '/applications.html';
@@ -342,16 +359,12 @@ async function handlePaystackCallback(response, applicationData, paymentType) {
 }
 
 async function verifyPaystackPayment(reference) {
-
     try {
-        console.log('Simulating payment verification for:', reference);
-    
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        return !!reference;
-        
+        const verifyFn = window.firebaseCallable(window.firebaseFunctions, 'verifyPaystackPayment');
+        const result = await verifyFn({ reference });
+        return result.data.success === true;
     } catch (error) {
-        console.error('Payment verification error:', error);
+        console.error('Payment verification failed:', error);
         return false;
     }
 }
@@ -380,6 +393,16 @@ export async function initiateTuitionPayment(applicationData, paymentPlan, month
         return false;
     }
 
+    if (month) {
+        const appRef = window.firebaseDoc(window.firebaseDb, 'applications', applicationData.id);
+        const freshDoc = await window.firebaseGetDoc(appRef);
+        if (freshDoc.exists() && checkIfMonthIsPaid(freshDoc.data(), month)) {
+            showToast(`${month} is already paid.`, 'info');
+            if (window.loadDashboardData) window.loadDashboardData(applicationData.id);
+            return false;
+        }
+    }
+
     try {
         paymentState.isProcessing = true;
         showPaymentLoading(true);
@@ -389,14 +412,17 @@ export async function initiateTuitionPayment(applicationData, paymentPlan, month
         // Debug the payment data
         debugMonthlyPayment(applicationData, paymentPlan, month);
 
-        // Check if application is approved
-        if (applicationData.status !== 'approved') {
+        // Fresh status check — in-memory applicationData may be stale if admin updated while portal was open
+        const freshAppRef = window.firebaseDoc(window.firebaseDb, 'applications', applicationData.id);
+        const freshAppSnap = await window.firebaseGetDoc(freshAppRef);
+        const currentStatus = freshAppSnap.exists() ? freshAppSnap.data().status : null;
+        if (currentStatus !== 'approved') {
             throw new Error('Your application must be approved before you can pay tuition fees.');
         }
 
         // Paystack TEST credentials
         const publicKey = 'pk_live_fc691ef3afbc4a51b790b602bbe80bb2510d49e4';
-        
+
         const subjectCount = applicationData.selectedSubjects?.length || 0;
         
         if (subjectCount === 0) {
@@ -514,7 +540,14 @@ export async function initiateTuitionPayment(applicationData, paymentPlan, month
 async function handleTuitionPaymentCallback(response, applicationData, paymentPlan, amount, month) {
     try {
         console.log('Tuition Payment Response:', response);
-        
+
+        if (!response || typeof response !== 'object' || !response.reference) {
+            showToast('Invalid payment response. Please contact support.', 'error');
+            paymentState.isProcessing = false;
+            showPaymentLoading(false);
+            return;
+        }
+
         const paymentVerified = await verifyPaystackPayment(response.reference);
         
         if (response.status === 'success' && paymentVerified) {
@@ -527,14 +560,13 @@ async function handleTuitionPaymentCallback(response, applicationData, paymentPl
             } else {
                 // For installment payments, record the monthly payment
                 if (month) {
-                    // Individual monthly payment
-                    await recordMonthlyPayment(applicationData.id, paymentPlan, month, amount);
+                    // Individual monthly payment — atomic transaction prevents double-paid race
+                    const allPaid = await recordMonthlyPaymentAndCheckCompletion(
+                        applicationData.id, paymentPlan, month, amount
+                    );
                     showToast(`${month} payment successful!`, 'success');
-                    
-                    // Check if all payments are completed
-                    const allPaid = await checkIfAllPaymentsCompleted(applicationData.id, paymentPlan);
+
                     if (allPaid) {
-                        await updateApplicationPaymentStatus(applicationData.id, 'fully_paid');
                         showToast('All tuition payments completed! Your enrollment is complete.', 'success');
                     }
                 } else {
@@ -560,11 +592,57 @@ async function handleTuitionPaymentCallback(response, applicationData, paymentPl
         }
     } catch (error) {
         console.error('Error handling tuition payment callback:', error);
-        showToast('Payment completed. Processing your enrollment...', 'info');
+        showToast('Payment processing error. Please contact support if you were charged.', 'error');
         paymentState.isProcessing = false;
     } finally {
         showPaymentLoading(false);
     }
+}
+
+// Atomically writes the monthly payment and, in the same transaction, sets
+// paymentStatus:'fully_paid' if all months are now covered. Returns true when
+// the student has finished all installments.
+async function recordMonthlyPaymentAndCheckCompletion(applicationId, paymentPlan, month, amount) {
+    if (typeof month !== 'string' || !month.trim()) {
+        throw new Error('Month must be a non-empty string');
+    }
+    if (typeof amount !== 'number' || amount <= 0 || isNaN(amount)) {
+        throw new Error('Payment amount must be a positive number');
+    }
+
+    const appRef = window.firebaseDoc(window.firebaseDb, 'applications', applicationId);
+    const monthKey = month.trim().toLowerCase().replace(/ /g, '_');
+    const monthsCount = paymentPlan === 'sixMonths' ? 6 : 10;
+    let allPaid = false;
+
+    await window.firebaseRunTransaction(window.firebaseDb, async (transaction) => {
+        const docSnap = await transaction.get(appRef);
+        const data = docSnap.exists() ? docSnap.data() : {};
+        const payments = { ...(data.payments || {}) };
+
+        payments[monthKey] = {
+            amount: amount / 100,
+            paid: true,
+            paidAt: new Date().toISOString(),
+            reference: `MONTHLY_${month.replace(/ /g, '_')}_${Date.now()}`
+        };
+
+        const startDate = data.paymentStartDate ? new Date(data.paymentStartDate) : new Date();
+        const monthNames = getMonthNames(monthsCount, startDate);
+        allPaid = monthNames.every(m => payments[m.toLowerCase().replace(/ /g, '_')]?.paid === true);
+
+        const updateData = {
+            paymentPlan,
+            [`payments.${monthKey}`]: payments[monthKey],
+            lastPaymentDate: payments[monthKey].paidAt,
+            updatedAt: new Date()
+        };
+        if (allPaid) updateData.paymentStatus = 'fully_paid';
+
+        transaction.update(appRef, updateData);
+    });
+
+    return allPaid;
 }
 
 // Check if all monthly payments are completed - FIXED VERSION
@@ -587,7 +665,12 @@ async function checkIfAllPaymentsCompleted(applicationId, paymentPlan) {
             
             const allPaid = monthNames.every(month => {
                 const monthKey = month.toLowerCase().replace(/ /g, '_');
-                const isPaid = payments[monthKey]?.paid === true;
+                const record = payments[monthKey];
+                if (typeof record !== 'object' || record === null) {
+                    console.warn(`Payment record for ${month} is missing or not an object:`, record);
+                    return false;
+                }
+                const isPaid = record.paid === true;
                 console.log(`Month ${month} paid:`, isPaid);
                 return isPaid;
             });

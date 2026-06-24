@@ -1,72 +1,175 @@
-// functions/index.js
-const functions = require("firebase-functions");
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onSchedule } = require("firebase-functions/v2/scheduler");
+const { defineSecret } = require("firebase-functions/params");
 const admin = require("firebase-admin");
 const axios = require("axios");
 
 admin.initializeApp();
 
-// 1. Store your Paystack Secret Key securely
-// Run this command in terminal to set it: 
-// firebase functions:config:set paystack.secret="sk_live_YOUR_ACTUAL_SECRET_KEY"
-const PAYSTACK_SECRET_KEY = functions.config().paystack.secret;
+const paystackSecret = defineSecret("PAYSTACK_SECRET");
 
-exports.verifyPaystackPayment = functions.https.onCall(async (data, context) => {
-    // Check if user is logged in
-    if (!context.auth) {
-        throw new functions.https.HttpsError(
-            "unauthenticated", 
-            "The function must be called while authenticated."
-        );
-    }
+exports.verifyPaystackPayment = onCall(
+    { secrets: [paystackSecret], cors: true, invoker: "public" },
+    async (request) => {
+        if (!request.auth) {
+            throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+        }
 
-    const reference = data.reference;
-    if (!reference) {
-        throw new functions.https.HttpsError("invalid-argument", "Payment reference is required.");
-    }
+        const reference = request.data.reference;
+        if (!reference || typeof reference !== "string") {
+            throw new HttpsError("invalid-argument", "Payment reference is required.");
+        }
 
-    try {
-        // 2. Call Paystack API to verify transaction
-        const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
-            headers: {
-                Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`
+        const userId = request.auth.uid;
+        const db = admin.firestore();
+
+        // Idempotency: return early if this reference was already successfully processed
+        const verificationRef = db.collection("payment_verifications").doc(reference);
+        const existingVerification = await verificationRef.get();
+        if (existingVerification.exists()) {
+            console.log(`Reference ${reference} already verified — returning cached result`);
+            return { success: true, message: "Payment already verified and recorded", cached: true };
+        }
+
+        try {
+            const response = await axios.get(
+                `https://api.paystack.co/transaction/verify/${reference}`,
+                { headers: { Authorization: `Bearer ${paystackSecret.value().trim()}` } }
+            );
+
+            const paymentData = response.data.data;
+
+            if (paymentData.status !== "success") {
+                return { success: false, message: "Transaction was not successful" };
             }
-        });
 
-        const paymentData = response.data.data;
+            const metadata = paymentData.metadata || {};
+            const allowedPaymentTypes = ["application_fee", "subject_fees", "tuition_fees"];
 
-        // 3. Validate the payment status
-        if (paymentData.status !== "success") {
-            return { success: false, message: "Transaction was not successful" };
-        }
+            // Verify the payment belongs to the authenticated user
+            if (metadata.application_id && metadata.application_id !== userId) {
+                throw new HttpsError("permission-denied", "Payment reference does not belong to this account.");
+            }
 
-        // 4. (Optional but Recommended) Verify Amount here
-        // if (paymentData.amount < expectedAmount) { ... }
+            const appRef = db.collection("applications").doc(userId);
 
-        // 5. Update Firestore securely from the backend
-        // This prevents users from faking the update on the client side
-        const userId = context.auth.uid;
-        
-        // Determine what was paid for based on metadata or reference
-        // This logic mimics your client-side logic but does it securely
-        const appRef = admin.firestore().collection("applications").doc(userId);
-        
-        // Example update (customize based on your exact needs)
-        if (paymentData.metadata && paymentData.metadata.payment_type === 'application_fee') {
-            await appRef.update({
-                paymentStatus: 'application_paid',
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            if (metadata.payment_type === "application_fee") {
+                await appRef.update({
+                    paymentStatus: "application_paid",
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+            } else if (metadata.payment_type === "subject_fees") {
+                await appRef.update({
+                    paymentStatus: "fully_paid",
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+            }
+
+            // Record successful verification for idempotency
+            await verificationRef.set({
+                reference,
+                userId,
+                paymentType: metadata.payment_type || null,
+                amount: paymentData.amount,
+                verifiedAt: admin.firestore.FieldValue.serverTimestamp()
             });
-        } else if (paymentData.metadata && paymentData.metadata.payment_type === 'subject_fees') {
-             await appRef.update({
-                paymentStatus: 'fully_paid',
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
+
+            return { success: true, message: "Payment verified and recorded" };
+
+        } catch (error) {
+            if (error instanceof HttpsError) throw error;
+
+            const errorDetails = error.response ? error.response.data : error.message;
+            console.error("Payment verification failed:", errorDetails);
+
+            // Log failed verification attempt for admin auditing
+            try {
+                await db.collection("payment_errors").doc(reference).set({
+                    reference,
+                    userId,
+                    timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                    errorMessage: error.message,
+                    statusCode: error.response?.status || null,
+                    errorDetails: errorDetails
+                }, { merge: true });
+            } catch (logErr) {
+                console.error("Failed to log payment error:", logErr.message);
+            }
+
+            throw new HttpsError("internal", "Unable to verify payment");
         }
-
-        return { success: true, message: "Payment verified and recorded" };
-
-    } catch (error) {
-        console.error("Payment verification failed:", error.response ? error.response.data : error);
-        throw new functions.https.HttpsError("internal", "Unable to verify payment");
     }
-});
+);
+
+exports.sendMonthlyPaymentReminders = onSchedule(
+    { schedule: "0 8 1 * *", timeZone: "Africa/Johannesburg" },
+    async () => {
+        const now = new Date();
+        const currentMonthDisplay = now.toLocaleString("en-ZA", { month: "long", year: "numeric" });
+
+        // Generates a Firestore month key matching the client-side format:
+        // toLocaleString('en-US', {month:'long',year:'numeric'}) → "January 2025" → "january_2025"
+        function getMonthKey(date) {
+            return date.toLocaleString("en-US", { month: "long", year: "numeric" })
+                .toLowerCase().replace(/ /g, "_");
+        }
+
+        const currentMonthKey = getMonthKey(now);
+
+        function getScheduledMonths(paymentStartDate, paymentPlan) {
+            const count = paymentPlan === "sixMonths" ? 6 : 10;
+            const start = new Date(paymentStartDate);
+            const keys = [];
+            for (let i = 0; i < count; i++) {
+                const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
+                keys.push(getMonthKey(d));
+            }
+            return keys;
+        }
+
+        const snap = await admin.firestore().collection("applications")
+            .where("paymentStatus", "==", "application_paid")
+            .where("paymentPlan", "in", ["sixMonths", "tenMonths"])
+            .get();
+
+        let sent = 0, skipped = 0;
+
+        for (const doc of snap.docs) {
+            try {
+                const student = doc.data();
+
+                if (!student.pushTokens || student.pushTokens.length === 0) { skipped++; continue; }
+
+                if (!student.paymentStartDate) { skipped++; continue; }
+                const schedule = getScheduledMonths(student.paymentStartDate, student.paymentPlan);
+                if (!schedule.includes(currentMonthKey)) { skipped++; continue; }
+
+                if (student.payments && student.payments[currentMonthKey]?.paid === true) { skipped++; continue; }
+
+                const planMonths = student.paymentPlan === "sixMonths" ? 6 : 10;
+                const monthlyAmount = student.tuitionAmount
+                    ? `R${(student.tuitionAmount / planMonths).toFixed(2)}`
+                    : "your monthly installment";
+
+                const result = await admin.messaging().sendEachForMulticast({
+                    tokens: student.pushTokens,
+                    notification: {
+                        title: "Tuition Payment Due",
+                        body: `Hi ${student.firstName || "there"}, your ${currentMonthDisplay} installment of ${monthlyAmount} is due today.`
+                    },
+                    webpush: {
+                        fcmOptions: { link: "/pages/applications.html" }
+                    }
+                });
+
+                sent++;
+                console.log(`Notified ${student.firstName} (${doc.id}) — ${result.successCount} sent, ${result.failureCount} failed`);
+
+            } catch (err) {
+                console.error(`Reminder failed for doc ${doc.id}:`, err.message);
+            }
+        }
+
+        console.log(`Monthly reminder complete — ${sent} notified, ${skipped} skipped`);
+    }
+);

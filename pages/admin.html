@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <script>if(!['localhost','127.0.0.1',''].includes(window.location.hostname))window.location.replace("maintenance.html");</script>
     <title>Alusani Academy - Admin Portal</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="../styling/admin.css">
@@ -98,6 +97,10 @@
                         <a href="#" class="menu-item" data-section="payments" data-tooltip="Payment Tracking">
                             <i class="fas fa-credit-card"></i>
                             <span class="menu-item-text">Payment Tracking</span>
+                        </a>
+                        <a href="#" class="menu-item" data-section="analytics" data-tooltip="Analytics">
+                            <i class="fas fa-chart-bar"></i>
+                            <span class="menu-item-text">Analytics</span>
                         </a>
                     </div>
                 </div>
@@ -348,6 +351,10 @@
                                     <div class="detail-item">
                                         <label>Balance</label>
                                         <p id="detailBalance">-</p>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Last Payment Date</label>
+                                        <p id="detailLastPaymentDate">-</p>
                                     </div>
                                 </div>
                             </div>

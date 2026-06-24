@@ -31,6 +31,7 @@ const FEE_STRUCTURE = {
 
 let currentApplicationData = null;
 let applicationListenerUnsubscribe = null;
+let monthlyPaymentListenerAdded = false;
 
 export function showDashboard(applicationData) {
     console.log('Showing dashboard with data:', applicationData);
@@ -90,6 +91,9 @@ function updateDashboardDisplay(applicationData) {
     
     // Update summary section
     updateSummarySection(applicationData);
+
+    // Update payment summary card (total, paid, balance, last payment date)
+    updatePaymentSummaryCard(applicationData);
 }
 
 function updateBasicInfo(applicationData) {
@@ -328,6 +332,57 @@ function updateSummarySection(applicationData) {
     }
 }
 
+function updatePaymentSummaryCard(applicationData) {
+    const card = document.getElementById('paymentSummaryCard');
+    if (!card) return;
+
+    const tuitionAmount = applicationData.tuitionAmount;
+    if (!tuitionAmount || !applicationData.paymentPlan) {
+        card.style.display = 'none';
+        return;
+    }
+
+    // Calculate amount paid from individual month records
+    let amountPaid = 0;
+    if (applicationData.tuitionPaid === true) {
+        amountPaid = tuitionAmount;
+    } else if (applicationData.payments) {
+        Object.values(applicationData.payments).forEach(p => {
+            if (p.paid && typeof p.amount === 'number') amountPaid += p.amount;
+        });
+    }
+
+    const balance = Math.max(0, tuitionAmount - amountPaid);
+
+    // Last payment date — prefer stored field, fall back to scanning paidAt timestamps
+    let lastPaymentDate = '-';
+    if (applicationData.lastPaymentDate) {
+        lastPaymentDate = formatDate(new Date(applicationData.lastPaymentDate));
+    } else if (applicationData.payments) {
+        const paidEntries = Object.values(applicationData.payments).filter(p => p.paid && p.paidAt);
+        if (paidEntries.length > 0) {
+            const latest = paidEntries.reduce((a, b) =>
+                new Date(b.paidAt) > new Date(a.paidAt) ? b : a);
+            lastPaymentDate = formatDate(new Date(latest.paidAt));
+        }
+    }
+
+    const totalEl = document.getElementById('summaryTotalAmount');
+    const paidEl = document.getElementById('summaryAmountPaid');
+    const balanceEl = document.getElementById('summaryBalance');
+    const lastEl = document.getElementById('summaryLastPaymentDate');
+
+    if (totalEl) totalEl.textContent = `R${tuitionAmount.toFixed(2)}`;
+    if (paidEl) paidEl.textContent = `R${amountPaid.toFixed(2)}`;
+    if (balanceEl) {
+        balanceEl.textContent = `R${balance.toFixed(2)}`;
+        balanceEl.style.color = balance > 0 ? '#d32f2f' : '#2e7d32';
+    }
+    if (lastEl) lastEl.textContent = lastPaymentDate;
+
+    card.style.display = 'block';
+}
+
 function updatePaymentDisplay(applicationData) {
     const paymentCards = document.querySelector('.payment-cards');
     const monthlyPayments = document.getElementById('monthlyPayments');
@@ -454,30 +509,33 @@ function initializePaymentButtons() {
         });
     });
     
-    // Monthly payment buttons (delegated event listener)
-    document.addEventListener('click', async (e) => {
-        if (e.target.classList.contains('pay-month-btn')) {
-            if (!currentApplicationData) {
-                showToast('Application data not found. Please refresh the page.', 'error');
-                return;
+    // Monthly payment buttons (delegated event listener — registered only once)
+    if (!monthlyPaymentListenerAdded) {
+        monthlyPaymentListenerAdded = true;
+        document.addEventListener('click', async (e) => {
+            if (e.target.classList.contains('pay-month-btn')) {
+                if (!currentApplicationData) {
+                    showToast('Application data not found. Please refresh the page.', 'error');
+                    return;
+                }
+
+                // Check if application is approved
+                if (!canPayTuition(currentApplicationData)) {
+                    showToast('Your application must be approved before you can pay tuition fees.', 'warning');
+                    return;
+                }
+
+                const month = e.target.getAttribute('data-month');
+                const paymentPlan = e.target.getAttribute('data-plan');
+
+                const paymentSuccess = await initiateTuitionPayment(currentApplicationData, paymentPlan, month);
+
+                if (paymentSuccess) {
+                    showToast('Monthly payment initiated. Please complete the payment process.', 'info');
+                }
             }
-            
-            // Check if application is approved
-            if (!canPayTuition(currentApplicationData)) {
-                showToast('Your application must be approved before you can pay tuition fees.', 'warning');
-                return;
-            }
-            
-            const month = e.target.getAttribute('data-month');
-            const paymentPlan = e.target.getAttribute('data-plan');
-            
-            const paymentSuccess = await initiateTuitionPayment(currentApplicationData, paymentPlan, month);
-            
-            if (paymentSuccess) {
-                showToast('Monthly payment initiated. Please complete the payment process.', 'info');
-            }
-        }
-    });
+        });
+    }
 }
 
 // Update showSection function to handle dashboard

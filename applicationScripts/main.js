@@ -24,8 +24,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function initializeApplication() {
     try {
-        await handlePaymentReturn();
-
         createLoadingSpinner();
 
         await initializeComponents();
@@ -178,6 +176,8 @@ function setupAutoSaveFeatures() {
 async function setupAuthListener() {
     if (window.firebaseAuth && typeof window.firebaseOnAuthStateChanged === 'function') {
         window.firebaseOnAuthStateChanged(window.firebaseAuth, async (user) => {
+            await handlePaymentReturn();
+
             const spinner = document.querySelector('.loading-spinner');
 
             await withErrorHandling(async () => {

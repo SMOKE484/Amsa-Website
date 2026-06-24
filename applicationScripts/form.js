@@ -107,7 +107,7 @@ export async function submitApplication(e) {
         const appRef = window.firebaseDoc(window.firebaseDb, 'applications', formData.id);
         const existingDoc = await window.firebaseGetDoc(appRef);
 
-        if (existingDoc.exists() && existingDoc.data().paymentStatus === 'paid') {
+        if (existingDoc.exists() && existingDoc.data().paymentStatus === 'application_paid') {
             // Complete existing application
             await completeApplicationSubmission(formData);
             return formData;

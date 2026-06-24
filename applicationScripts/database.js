@@ -138,7 +138,7 @@ export async function completeApplicationSubmission(formData) {
             console.log('Saving to Firestore:', applicationData);
 
             await retryOperation(
-                () => window.firebaseSetDoc(appRef, applicationData), 
+                () => window.firebaseSetDoc(appRef, applicationData, { merge: true }),
                 3, 1000
             );
 
@@ -551,33 +551,7 @@ export async function handlePaymentReturn() {
             // Clean the URL parameters immediately
             window.history.replaceState({}, document.title, window.location.pathname);
 
-            if (isSuccess) {
-                try {
-                    // Update application status to 'application_paid' (assuming this is application fee)
-                    // More complex logic might be needed if handling tuition fees here too
-                    await updateApplicationPaymentStatus(applicationId, 'application_paid');
-                    showToast('Payment successful! Your application is being submitted.', 'success');
-
-                    // Allow time for Firestore update to propagate before loading dashboard
-                    setTimeout(() => {
-                        const user = window.firebaseAuth.currentUser;
-                        if (user && user.uid === applicationId) {
-                            showDashboardSection(); // Show dashboard
-                            loadDashboardData(applicationId, true); // Load data for the dashboard
-                        } else {
-                             console.warn('User mismatch or not logged in after payment return.');
-                             // Maybe redirect to login or show a generic success message
-                             showSection('status'); // Show generic status page
-                        }
-                    }, 1500); // Delay slightly
-
-                } catch (error) {
-                    console.error('Error processing successful payment return:', error);
-                    showToast('Payment confirmed, but error updating application. Contact support.', 'warning');
-                     // Still try to load dashboard or show status
-                     setTimeout(() => showSection('status'), 1500);
-                }
-            } else if (isCancelled) {
+            if (isCancelled) {
                 showToast('Payment was cancelled. You can complete payment later.', 'info');
                 // Potentially redirect back to the application form or show a specific message
                  setTimeout(() => showSection('application'), 1500);

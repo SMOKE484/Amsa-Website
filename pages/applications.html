@@ -514,6 +514,28 @@
                             </div>
                         </div>
 
+                        <div id="paymentSummaryCard" class="payment-summary-card" style="display:none; margin: 20px 0; padding: 16px; background: #f9f9f9; border-radius: 8px; border: 1px solid #e0e0e0;">
+                            <h4 style="margin-bottom: 12px;">Payment Summary</h4>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px;">
+                                <div>
+                                    <div style="font-size: 0.8rem; color: #666; margin-bottom: 2px;">Total Amount Owed</div>
+                                    <div id="summaryTotalAmount" style="font-weight: 600; font-size: 1.05rem;">-</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.8rem; color: #666; margin-bottom: 2px;">Amount Paid</div>
+                                    <div id="summaryAmountPaid" style="font-weight: 600; font-size: 1.05rem; color: #2e7d32;">-</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.8rem; color: #666; margin-bottom: 2px;">Balance Remaining</div>
+                                    <div id="summaryBalance" style="font-weight: 600; font-size: 1.05rem;">-</div>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.8rem; color: #666; margin-bottom: 2px;">Last Payment Date</div>
+                                    <div id="summaryLastPaymentDate" style="font-weight: 600; font-size: 1.05rem;">-</div>
+                                </div>
+                            </div>
+                        </div>
+
                                             <div class="payment-plan-selection" style="margin-bottom: 20px;">
                             <h4>Select Payment Plan</h4>
                             <p>Choose how you want to pay your tuition fees</p>
@@ -854,7 +876,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-analytics.js";
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, serverTimestamp, query, where, getDocs, doc, setDoc, getDoc, onSnapshot, updateDoc, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
 import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js";
 import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging.js";
@@ -874,14 +896,17 @@ getAnalytics(app);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
-const messaging = getMessaging(app); // *** ADDED Initialize messaging ***
+const messaging = getMessaging(app);
+const functions = getFunctions(app);
 
 // Store Firebase modules globally
 window.firebaseApp = app;
 window.firebaseAuth = auth;
 window.firebaseDb = db;
 window.firebaseStorage = storage;
-window.firebaseMessaging = messaging; // *** ADDED Messaging globally ***
+window.firebaseMessaging = messaging;
+window.firebaseFunctions = functions;
+window.firebaseCallable = httpsCallable;
 window.firebaseSignInWithPopup = signInWithPopup;
 window.firebaseGoogleAuthProvider = GoogleAuthProvider;
 window.firebaseSignOut = signOut;
@@ -901,6 +926,7 @@ window.firebaseGetDoc = getDoc;
 window.firebaseOnSnapshot = onSnapshot;
 window.firebaseUpdateDoc = updateDoc;
 window.firebaseArrayUnion = arrayUnion;
+window.firebaseRunTransaction = runTransaction;
 window.firebaseGetToken = getToken; // *** ADDED getToken globally ***
 window.firebaseOnMessage = onMessage; // *** ADDED onMessage globally ***
 
