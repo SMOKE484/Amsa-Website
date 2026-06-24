@@ -1220,12 +1220,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         let amountPaid = 0;
 
-        // Application fee (R200) is tracked via paymentStatus, not the payments map
-        if (app.paymentStatus === PAYMENT_STATUS.APPLICATION_PAID) {
-            amountPaid += 200;
-        }
-
-        // All entries in app.payments are tuition payments
+        // All entries in app.payments are tuition payments — the application fee is
+        // tracked only via paymentStatus and is never written to this object.
         if (app.payments && Object.keys(app.payments).length > 0) {
             Object.values(app.payments).forEach(payment => {
                 if (payment.paid && typeof payment.amount === 'number') {
