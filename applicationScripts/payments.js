@@ -293,9 +293,8 @@ async function handlePaystackCallback(response, applicationData, paymentType) {
         }
 
         // Verify payment was successful
-        const paymentVerified = await verifyPaystackPayment(response.reference);
-        
-        // --- payments.js ---
+        const verifyResult = await verifyPaystackPayment(response.reference);
+        const paymentVerified = verifyResult.success === true;
 
         if (response.status === 'success' && paymentVerified) {
             if (paymentType === 'application') {
@@ -362,10 +361,10 @@ async function verifyPaystackPayment(reference) {
     try {
         const verifyFn = window.firebaseCallable(window.firebaseFunctions, 'verifyPaystackPayment');
         const result = await verifyFn({ reference });
-        return result.data.success === true;
+        return result.data; // { success, allPaid, cached, message }
     } catch (error) {
         console.error('Payment verification failed:', error);
-        return false;
+        return { success: false };
     }
 }
 
@@ -548,24 +547,31 @@ async function handleTuitionPaymentCallback(response, applicationData, paymentPl
             return;
         }
 
-        const paymentVerified = await verifyPaystackPayment(response.reference);
-        
+        const verifyResult = await verifyPaystackPayment(response.reference);
+        const paymentVerified = verifyResult.success === true;
+
         if (response.status === 'success' && paymentVerified) {
             if (paymentPlan === 'upfront') {
                 // Update application with payment plan and status for upfront payment
                 await updateApplicationWithPaymentPlan(applicationData.id, paymentPlan, amount);
                 showToast('Full tuition payment successful! Your enrollment is complete.', 'success');
                 await updateApplicationPaymentStatus(applicationData.id, 'fully_paid');
-                
+
             } else {
                 // For installment payments, record the monthly payment
                 if (month) {
-                    // Individual monthly payment — atomic transaction prevents double-paid race
-                    const allPaid = await recordMonthlyPaymentAndCheckCompletion(
-                        applicationData.id, paymentPlan, month, amount
-                    );
+                    // Cloud Function already wrote the payment server-side in verifyPaystackPayment.
+                    // Call client-side transaction as belt-and-suspenders (idempotent — safe to double-write).
+                    let allPaid = verifyResult.allPaid === true;
+                    try {
+                        const clientAllPaid = await recordMonthlyPaymentAndCheckCompletion(
+                            applicationData.id, paymentPlan, month, amount
+                        );
+                        allPaid = allPaid || clientAllPaid;
+                    } catch (txErr) {
+                        console.warn('Client-side monthly payment transaction failed (server already recorded it):', txErr);
+                    }
                     showToast(`${month} payment successful!`, 'success');
-
                     if (allPaid) {
                         showToast('All tuition payments completed! Your enrollment is complete.', 'success');
                     }

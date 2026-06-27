@@ -8,6 +8,24 @@ admin.initializeApp();
 
 const paystackSecret = defineSecret("PAYSTACK_SECRET");
 
+// Shared month-key format: must match client-side toLocaleString('en-US', {month:'long',year:'numeric'})
+// "July 2025" → "july_2025"
+function getMonthKey(date) {
+    return date.toLocaleString("en-US", { month: "long", year: "numeric" })
+        .toLowerCase().replace(/ /g, "_");
+}
+
+function getScheduledMonthKeys(paymentStartDate, paymentPlan) {
+    const count = paymentPlan === "sixMonths" ? 6 : 10;
+    const start = new Date(paymentStartDate);
+    const keys = [];
+    for (let i = 0; i < count; i++) {
+        const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
+        keys.push(getMonthKey(d));
+    }
+    return keys;
+}
+
 exports.verifyPaystackPayment = onCall(
     { secrets: [paystackSecret], cors: true, invoker: "public" },
     async (request) => {
@@ -53,6 +71,8 @@ exports.verifyPaystackPayment = onCall(
 
             const appRef = db.collection("applications").doc(userId);
 
+            let allPaid = false;
+
             if (metadata.payment_type === "application_fee") {
                 await appRef.update({
                     paymentStatus: "application_paid",
@@ -63,6 +83,44 @@ exports.verifyPaystackPayment = onCall(
                     paymentStatus: "fully_paid",
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 });
+            } else if (metadata.payment_type === "tuition_fees") {
+                const paymentMonth = metadata.payment_month;
+                const paymentPlan = metadata.payment_plan;
+
+                // 'first_payment' means the plan is being activated — client handles this via
+                // updateApplicationWithPaymentPlan; no monthly record to write here
+                if (paymentMonth && paymentMonth !== "first_payment" && paymentPlan) {
+                    const monthKey = paymentMonth.trim().toLowerCase().replace(/ /g, "_");
+
+                    allPaid = await db.runTransaction(async (transaction) => {
+                        const docSnap = await transaction.get(appRef);
+                        const data = docSnap.exists() ? docSnap.data() : {};
+                        const payments = { ...(data.payments || {}) };
+
+                        payments[monthKey] = {
+                            amount: paymentData.amount / 100,
+                            paid: true,
+                            paidAt: new Date().toISOString(),
+                            reference: reference
+                        };
+
+                        const startDate = data.paymentStartDate
+                            ? new Date(data.paymentStartDate)
+                            : new Date();
+                        const scheduledKeys = getScheduledMonthKeys(startDate, paymentPlan);
+                        const completed = scheduledKeys.every(k => payments[k]?.paid === true);
+
+                        const updateData = {
+                            [`payments.${monthKey}`]: payments[monthKey],
+                            lastPaymentDate: payments[monthKey].paidAt,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                        };
+                        if (completed) updateData.paymentStatus = "fully_paid";
+
+                        transaction.update(appRef, updateData);
+                        return completed;
+                    });
+                }
             }
 
             // Record successful verification for idempotency
@@ -74,7 +132,7 @@ exports.verifyPaystackPayment = onCall(
                 verifiedAt: admin.firestore.FieldValue.serverTimestamp()
             });
 
-            return { success: true, message: "Payment verified and recorded" };
+            return { success: true, message: "Payment verified and recorded", allPaid };
 
         } catch (error) {
             if (error instanceof HttpsError) throw error;
@@ -106,26 +164,7 @@ exports.sendMonthlyPaymentReminders = onSchedule(
     async () => {
         const now = new Date();
         const currentMonthDisplay = now.toLocaleString("en-ZA", { month: "long", year: "numeric" });
-
-        // Generates a Firestore month key matching the client-side format:
-        // toLocaleString('en-US', {month:'long',year:'numeric'}) → "January 2025" → "january_2025"
-        function getMonthKey(date) {
-            return date.toLocaleString("en-US", { month: "long", year: "numeric" })
-                .toLowerCase().replace(/ /g, "_");
-        }
-
         const currentMonthKey = getMonthKey(now);
-
-        function getScheduledMonths(paymentStartDate, paymentPlan) {
-            const count = paymentPlan === "sixMonths" ? 6 : 10;
-            const start = new Date(paymentStartDate);
-            const keys = [];
-            for (let i = 0; i < count; i++) {
-                const d = new Date(start.getFullYear(), start.getMonth() + i, 1);
-                keys.push(getMonthKey(d));
-            }
-            return keys;
-        }
 
         const snap = await admin.firestore().collection("applications")
             .where("paymentStatus", "==", "application_paid")
@@ -141,7 +180,7 @@ exports.sendMonthlyPaymentReminders = onSchedule(
                 if (!student.pushTokens || student.pushTokens.length === 0) { skipped++; continue; }
 
                 if (!student.paymentStartDate) { skipped++; continue; }
-                const schedule = getScheduledMonths(student.paymentStartDate, student.paymentPlan);
+                const schedule = getScheduledMonthKeys(student.paymentStartDate, student.paymentPlan);
                 if (!schedule.includes(currentMonthKey)) { skipped++; continue; }
 
                 if (student.payments && student.payments[currentMonthKey]?.paid === true) { skipped++; continue; }
