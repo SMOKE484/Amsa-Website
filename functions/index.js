@@ -44,7 +44,7 @@ exports.verifyPaystackPayment = onCall(
         // Idempotency: return early if this reference was already successfully processed
         const verificationRef = db.collection("payment_verifications").doc(reference);
         const existingVerification = await verificationRef.get();
-        if (existingVerification.exists()) {
+        if (existingVerification.exists) {
             console.log(`Reference ${reference} already verified — returning cached result`);
             return { success: true, message: "Payment already verified and recorded", cached: true };
         }
@@ -94,7 +94,7 @@ exports.verifyPaystackPayment = onCall(
 
                     allPaid = await db.runTransaction(async (transaction) => {
                         const docSnap = await transaction.get(appRef);
-                        const data = docSnap.exists() ? docSnap.data() : {};
+                        const data = docSnap.exists ? docSnap.data() : {};
                         const payments = { ...(data.payments || {}) };
 
                         payments[monthKey] = {
