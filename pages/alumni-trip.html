@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alumni Trip Consent Form - Alusani Maths and Science Academy</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<link rel="stylesheet" href="../styling/index.css">
+<link rel="stylesheet" href="../styling/application.css">
+<style>
+    /* .hero (application.css) was written for pages with a static, scrolling
+       <header>. This page uses nav.navbar (index.css), which is
+       position: fixed, so .hero's own padding-top doesn't clear it -- the
+       heading renders underneath the nav without this override. Matches the
+       top padding contact.css uses for .contact-hero under the same nav. */
+    .hero {
+        padding-top: 160px;
+    }
+    @media (max-width: 768px) {
+        .hero {
+            padding-top: 140px;
+        }
+    }
+</style>
+</head>
+<body>
+
+<nav class="navbar"></nav>
+
+<section class="hero">
+    <div class="container">
+        <h2>Alumni Trip Consent &amp; Indemnity Form</h2>
+        <p>Please complete this form to confirm your participation in an upcoming AMSA alumni trip. A signed copy is kept on file for our records.</p>
+    </div>
+</section>
+
+<section class="application-section" id="tripFormSection">
+    <div class="container">
+        <div class="form-container">
+            <h2 class="form-title">Trip Sign-Up</h2>
+            <form id="alumniTripForm" novalidate>
+                <div class="form-grid">
+                    <div class="form-group form-full">
+                        <label for="tripSelect">Trip *</label>
+                        <select id="tripSelect" class="form-control" required>
+                            <option value="">Loading trips...</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="fullName">Full Name *</label>
+                        <input type="text" id="fullName" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email Address *</label>
+                        <input type="email" id="email" class="form-control" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="phone">Phone Number *</label>
+                        <input type="tel" id="phone" class="form-control" placeholder="e.g. 0821234567" required>
+                    </div>
+
+                    <div class="form-group form-full">
+                        <label>Emergency Contact *</label>
+                        <div class="emergency-contact-form">
+                            <div class="form-group">
+                                <label for="emergencyContactName">Full Name *</label>
+                                <input type="text" id="emergencyContactName" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="emergencyContactPhone">Phone Number *</label>
+                                <input type="tel" id="emergencyContactPhone" class="form-control" placeholder="e.g. 0821234567" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="emergencyContactRelationship">Relationship *</label>
+                                <input type="text" id="emergencyContactRelationship" class="form-control" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group form-full">
+                        <label>Medical Information</label>
+                        <div class="emergency-contact-form">
+                            <div class="form-group">
+                                <label for="medicalConditions">Medical Conditions (if any)</label>
+                                <textarea id="medicalConditions" class="form-control" rows="3"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="allergies">Allergies (if any)</label>
+                                <textarea id="allergies" class="form-control" rows="3"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="medicalAidDetails">Medical Aid Details (if any)</label>
+                                <input type="text" id="medicalAidDetails" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group form-full">
+                        <label>Indemnity &amp; Consent Waiver *</label>
+                        <p id="waiverTextContainer" class="rules-content"></p>
+                        <div class="consent-checkbox">
+                            <input type="checkbox" id="waiverAgreed" required>
+                            <label for="waiverAgreed">I confirm that I have read and agree to the waiver above *</label>
+                        </div>
+                    </div>
+
+                    <div class="form-group form-full">
+                        <label>POPIA Consent *</label>
+                        <p id="popiaTextContainer" class="rules-content"></p>
+                        <div class="consent-checkbox">
+                            <input type="checkbox" id="popiaConsent" required>
+                            <label for="popiaConsent">I consent to the processing of my personal information as described above *</label>
+                        </div>
+                    </div>
+
+                    <div class="form-group form-full">
+                        <div class="signature-field">
+                            <label for="tripSignaturePad">Signature *</label>
+                            <canvas id="tripSignaturePad" width="500" height="150"></canvas>
+                            <button type="button" id="clearTripSignature" class="btn btn-secondary">Clear Signature</button>
+                            <input type="hidden" id="tripSignature" required>
+                        </div>
+                    </div>
+
+                    <!-- Honeypot: hidden from real users, left blank. A filled value means a bot. -->
+                    <div class="form-group" style="position:absolute; left:-9999px; top:-9999px;" aria-hidden="true">
+                        <label for="companyWebsite">Company Website</label>
+                        <input type="text" id="companyWebsite" class="form-control" tabindex="-1" autocomplete="off">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary submit-btn" id="submitTripFormBtn">
+                    <i class="fas fa-paper-plane"></i> Submit Consent Form
+                </button>
+            </form>
+        </div>
+    </div>
+</section>
+
+<section class="application-status" id="tripSuccessSection" style="display: none;">
+    <div class="container">
+        <div class="status-card">
+            <div class="status-icon"><i class="fas fa-check"></i></div>
+            <h3>Form Submitted</h3>
+            <p id="tripSuccessMessage">Thank you — your consent form has been recorded.</p>
+        </div>
+    </div>
+</section>
+
+<footer></footer>
+
+<div id="toastContainer"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/signature_pad@4.0.0/dist/signature_pad.umd.min.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-functions.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyBqXXAo4PCH_fv4_dciua9J-fUQeOzxi7w",
+    authDomain: "amsa-website-3b9d5.firebaseapp.com",
+    projectId: "amsa-website-3b9d5",
+    storageBucket: "amsa-website-3b9d5.firebasestorage.app",
+    messagingSenderId: "843868533888",
+    appId: "1:843868533888:web:a681f7c4bca393a535a265",
+    measurementId: "G-ZTTW4YT0J9"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const functions = getFunctions(app);
+
+// This is a public, unauthenticated page -- no Auth/Storage/Messaging SDK is
+// loaded here, only what's needed to read active trips and call the
+// submitAlumniTripForm Cloud Function.
+window.firebaseDb = db;
+window.firebaseFunctions = functions;
+window.firebaseCallable = httpsCallable;
+window.firebaseCollection = collection;
+window.firebaseQuery = query;
+window.firebaseWhere = where;
+window.firebaseGetDocs = getDocs;
+</script>
+
+<script src="../alumniTripScripts/main.js" type="module"></script>
+<script src="../scripts/components.js"></script>
+</body>
+</html>

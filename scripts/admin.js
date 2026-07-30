@@ -378,6 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                         // Setup real-time listeners
                         setupRealTimeListeners();
+                        setupAlumniTripListeners();
                         
                     } else {
                         alert("You don't have permission to access the admin portal.");
@@ -427,12 +428,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.applicationsListener();
                 window.applicationsListener = null;
             }
-            
+            if (window.alumniTripsListener) {
+                window.alumniTripsListener();
+                window.alumniTripsListener = null;
+            }
+            if (window.alumniTripSubmissionsListener) {
+                window.alumniTripSubmissionsListener();
+                window.alumniTripSubmissionsListener = null;
+            }
+
             cleanupDetailListener();
-            
+
             // Clear heavy data
             applications = [];
             filteredApplications = [];
+            trips = [];
+            tripSubmissions = [];
             
             if (!checkFirebaseAvailability()) return;
             const { signOut } = window.firebase;
@@ -2155,5 +2166,265 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         `;
         document.head.appendChild(style);
+    }
+
+    // ---------------------------------------------------------------------
+    // Alumni Trips
+    // ---------------------------------------------------------------------
+    const tripsTableBody = document.getElementById('tripsTableBody');
+    const tripSubmissionsTableBody = document.getElementById('tripSubmissionsTableBody');
+    const tripFilter = document.getElementById('tripFilter');
+    const addTripBtn = document.getElementById('addTripBtn');
+    const tripModal = document.getElementById('tripModal');
+    const tripModalTitle = document.getElementById('tripModalTitle');
+    const closeTripModalBtn = document.getElementById('closeTripModal');
+    const cancelTripBtn = document.getElementById('cancelTripBtn');
+    const saveTripBtn = document.getElementById('saveTripBtn');
+    const tripNameInput = document.getElementById('tripName');
+    const tripDescriptionInput = document.getElementById('tripDescription');
+    const tripDateInput = document.getElementById('tripDate');
+    const tripActiveInput = document.getElementById('tripActive');
+
+    let trips = [];
+    let tripSubmissions = [];
+    let editingTripId = null;
+
+    if (addTripBtn) addTripBtn.addEventListener('click', () => openTripModal(null));
+    if (closeTripModalBtn) closeTripModalBtn.addEventListener('click', closeTripModal);
+    if (cancelTripBtn) cancelTripBtn.addEventListener('click', closeTripModal);
+    if (tripModal) {
+        tripModal.addEventListener('click', (e) => {
+            if (e.target === tripModal) closeTripModal();
+        });
+    }
+    if (saveTripBtn) saveTripBtn.addEventListener('click', saveTrip);
+    if (tripFilter) tripFilter.addEventListener('change', renderAlumniTripSubmissions);
+
+    function openTripModal(trip) {
+        editingTripId = trip ? trip.id : null;
+        tripModalTitle.textContent = trip ? 'Edit Trip' : 'Add Trip';
+        tripNameInput.value = trip ? (trip.name || '') : '';
+        tripDescriptionInput.value = trip ? (trip.description || '') : '';
+        tripDateInput.value = trip ? (trip.tripDate || '') : '';
+        tripActiveInput.checked = trip ? trip.active !== false : true;
+        tripModal.style.display = 'flex';
+    }
+
+    function closeTripModal() {
+        tripModal.style.display = 'none';
+        editingTripId = null;
+    }
+
+    async function saveTrip() {
+        const name = tripNameInput.value.trim();
+        const tripDateValue = tripDateInput.value;
+        if (!name || !tripDateValue) {
+            showToast('Trip name and date are required', 'error');
+            return;
+        }
+
+        const { collection, addDoc, doc, updateDoc, serverTimestamp } = window.firebase;
+        const tripData = {
+            name,
+            description: tripDescriptionInput.value.trim(),
+            tripDate: tripDateValue,
+            active: tripActiveInput.checked,
+            updatedAt: serverTimestamp()
+        };
+
+        saveTripBtn.disabled = true;
+        try {
+            if (editingTripId) {
+                await updateDoc(doc(window.firebase.db, 'alumniTrips', editingTripId), tripData);
+                showToast('Trip updated', 'success');
+            } else {
+                tripData.createdAt = serverTimestamp();
+                tripData.createdBy = window.firebase.auth.currentUser ? window.firebase.auth.currentUser.uid : null;
+                await addDoc(collection(window.firebase.db, 'alumniTrips'), tripData);
+                showToast('Trip added', 'success');
+            }
+            closeTripModal();
+        } catch (error) {
+            console.error('Error saving trip:', error);
+            showToast('Failed to save trip: ' + error.message, 'error');
+        } finally {
+            saveTripBtn.disabled = false;
+        }
+    }
+
+    function renderAlumniTrips() {
+        if (!tripsTableBody) return;
+        tripsTableBody.innerHTML = '';
+
+        if (tripFilter) {
+            const currentValue = tripFilter.value;
+            tripFilter.innerHTML = '<option value="all">All Trips</option>';
+            trips.forEach(trip => {
+                const opt = document.createElement('option');
+                opt.value = trip.id;
+                opt.textContent = trip.name;
+                tripFilter.appendChild(opt);
+            });
+            tripFilter.value = (currentValue && trips.some(t => t.id === currentValue)) ? currentValue : 'all';
+        }
+
+        if (trips.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 4;
+            td.className = 'no-data';
+            td.textContent = 'No trips created yet.';
+            tr.appendChild(td);
+            tripsTableBody.appendChild(tr);
+            return;
+        }
+
+        trips.forEach(trip => {
+            const row = document.createElement('tr');
+
+            const tdName = document.createElement('td');
+            tdName.textContent = trip.name || '';
+            row.appendChild(tdName);
+
+            const tdDate = document.createElement('td');
+            tdDate.textContent = trip.tripDate || 'N/A';
+            row.appendChild(tdDate);
+
+            const tdActive = document.createElement('td');
+            const span = document.createElement('span');
+            span.className = `status-badge ${trip.active ? 'status-approved' : 'status-rejected'}`;
+            span.textContent = trip.active ? 'Active' : 'Inactive';
+            tdActive.appendChild(span);
+            row.appendChild(tdActive);
+
+            const tdActions = document.createElement('td');
+            const editBtn = document.createElement('button');
+            editBtn.className = 'btn btn-outline edit-trip-btn';
+            editBtn.dataset.id = trip.id;
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-edit';
+            editBtn.appendChild(icon);
+            editBtn.appendChild(document.createTextNode(' Edit'));
+            tdActions.appendChild(editBtn);
+            row.appendChild(tdActions);
+
+            tripsTableBody.appendChild(row);
+        });
+
+        // Full rebuild above means old buttons (and their listeners) were just
+        // discarded with the tbody, so re-attaching here can't stack duplicates.
+        tripsTableBody.querySelectorAll('.edit-trip-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const trip = trips.find(t => t.id === btn.dataset.id);
+                if (trip) openTripModal(trip);
+            });
+        });
+    }
+
+    function renderAlumniTripSubmissions() {
+        if (!tripSubmissionsTableBody) return;
+        tripSubmissionsTableBody.innerHTML = '';
+
+        const filterValue = tripFilter ? tripFilter.value : 'all';
+        const filtered = filterValue === 'all' ? tripSubmissions : tripSubmissions.filter(s => s.tripId === filterValue);
+
+        if (filtered.length === 0) {
+            const tr = document.createElement('tr');
+            const td = document.createElement('td');
+            td.colSpan = 6;
+            td.className = 'no-data';
+            td.textContent = 'No trip sign-ups yet.';
+            tr.appendChild(td);
+            tripSubmissionsTableBody.appendChild(tr);
+            return;
+        }
+
+        filtered.forEach(sub => {
+            const row = document.createElement('tr');
+
+            const tdName = document.createElement('td');
+            tdName.textContent = sub.fullName || '';
+            row.appendChild(tdName);
+
+            const tdTrip = document.createElement('td');
+            tdTrip.textContent = sub.tripName || '';
+            row.appendChild(tdTrip);
+
+            const tdContact = document.createElement('td');
+            tdContact.textContent = `${sub.email || ''} / ${sub.phone || ''}`;
+            row.appendChild(tdContact);
+
+            const tdEmergency = document.createElement('td');
+            tdEmergency.textContent = `${sub.emergencyContactName || ''} (${sub.emergencyContactPhone || ''})`;
+            row.appendChild(tdEmergency);
+
+            const tdSigned = document.createElement('td');
+            tdSigned.textContent = formatDate(sub.signedAt);
+            row.appendChild(tdSigned);
+
+            const tdActions = document.createElement('td');
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'btn btn-outline download-trip-pdf-btn';
+            downloadBtn.dataset.id = sub.id;
+            const icon = document.createElement('i');
+            icon.className = 'fas fa-download';
+            downloadBtn.appendChild(icon);
+            downloadBtn.appendChild(document.createTextNode(' Download PDF'));
+            tdActions.appendChild(downloadBtn);
+            row.appendChild(tdActions);
+
+            tripSubmissionsTableBody.appendChild(row);
+        });
+
+        tripSubmissionsTableBody.querySelectorAll('.download-trip-pdf-btn').forEach(btn => {
+            btn.addEventListener('click', () => downloadAlumniTripPdf(btn));
+        });
+    }
+
+    async function downloadAlumniTripPdf(button) {
+        const submissionId = button.dataset.id;
+        const originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing...';
+
+        try {
+            const { httpsCallable, functions } = window.firebase;
+            const getUrl = httpsCallable(functions, 'getAlumniTripPdfUrl');
+            const result = await getUrl({ submissionId });
+            window.open(result.data.url, '_blank');
+        } catch (error) {
+            console.error('Error downloading alumni trip PDF:', error);
+            showToast('Failed to get PDF download link: ' + (error.message || 'Unknown error'), 'error');
+        } finally {
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        }
+    }
+
+    function setupAlumniTripListeners() {
+        if (window.alumniTripsListener || window.alumniTripSubmissionsListener) return;
+
+        const { collection, query, orderBy, onSnapshot } = window.firebase;
+
+        const tripsQuery = query(collection(window.firebase.db, 'alumniTrips'), orderBy('createdAt', 'desc'));
+        window.alumniTripsListener = onSnapshot(tripsQuery, (snapshot) => {
+            trips = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+            renderAlumniTrips();
+            renderAlumniTripSubmissions();
+        }, (error) => {
+            console.error('Alumni trips listener error:', error);
+        });
+
+        const submissionsQuery = query(collection(window.firebase.db, 'alumniTripSubmissions'), orderBy('signedAt', 'desc'));
+        window.alumniTripSubmissionsListener = onSnapshot(submissionsQuery, (snapshot) => {
+            tripSubmissions = snapshot.docs.map(d => ({
+                id: d.id,
+                ...d.data(),
+                signedAt: safeConvertToDate(d.data().signedAt)
+            }));
+            renderAlumniTripSubmissions();
+        }, (error) => {
+            console.error('Alumni trip submissions listener error:', error);
+        });
     }
 });

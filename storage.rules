@@ -1,0 +1,22 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Alumni trip consent/indemnity PDFs contain contact, emergency-contact,
+    // and medical info. They are written only by the submitAlumniTripForm
+    // Cloud Function (Admin SDK, bypasses these rules) and read only via a
+    // short-lived signed URL minted by the admin-gated getAlumniTripPdfUrl
+    // Cloud Function -- signed URLs are also independent of these rules.
+    // No client should ever read/write this path directly.
+    match /alumni-trip-pdfs/{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    // Nothing else in this repo currently uses Firebase Storage (file
+    // uploads for applications go to Cloudinary instead), so default-deny
+    // the rest of the bucket rather than leaving it unconfigured.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

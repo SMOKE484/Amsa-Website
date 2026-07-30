@@ -68,4 +68,5 @@ node_modules/
 # dataconnect generated files
 .dataconnect
 
-.md
+CLAUDE.md
+BUGS_TO_FIX.md

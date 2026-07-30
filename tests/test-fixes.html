@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AMSA — Bug Fix Tests</title>
+    <style>
+        body { font-family: monospace; padding: 24px; background: #111; color: #eee; }
+        h1 { color: #fff; margin-bottom: 4px; }
+        .subtitle { color: #888; margin-bottom: 24px; font-size: 13px; }
+        .summary { font-size: 15px; margin-bottom: 20px; padding: 10px 16px; border-radius: 6px; }
+        .summary.all-pass { background: #0d2b0d; border: 1px solid #2d6a2d; color: #6fcf6f; }
+        .summary.has-fail { background: #2b0d0d; border: 1px solid #6a2d2d; color: #cf6f6f; }
+        .test { margin-bottom: 10px; padding: 10px 16px; border-radius: 6px; }
+        .test.pass { background: #0d1f0d; border-left: 4px solid #4caf50; }
+        .test.fail { background: #1f0d0d; border-left: 4px solid #f44336; }
+        .test-name { font-size: 14px; font-weight: bold; }
+        .test.pass .test-name { color: #81c784; }
+        .test.fail .test-name { color: #e57373; }
+        .test-strategy { font-size: 11px; color: #666; margin-top: 2px; }
+        .test-error { font-size: 12px; color: #ef9a9a; margin-top: 6px; white-space: pre-wrap; }
+        .running { color: #888; font-style: italic; margin-bottom: 16px; }
+    </style>
+</head>
+<body>
+    <h1>AMSA Bug Fix Tests</h1>
+    <p class="subtitle">Verifies the 6 HIGH-priority bug fixes. Open via Live Server or <code>firebase serve</code>.</p>
+
+    <!-- Minimal DOM stubs required by dashboard.js (Bug 5 test) -->
+    <div id="dashboardSection" style="display:none"></div>
+    <div id="applicationSection" style="display:none"></div>
+    <div id="applicationStatus" style="display:none"></div>
+    <div id="paymentsTab" style="display:none"></div>
+    <div class="dashboard-name" style="display:none"></div>
+    <div class="application-id" style="display:none"></div>
+    <div class="application-status-text" style="display:none"></div>
+    <div class="payment-status-text" style="display:none"></div>
+    <div class="payment-status-badge" style="display:none"></div>
+
+    <!-- Minimal DOM stubs required by alumniTripScripts (constants.js reads these
+         at module-load time; collectAlumniTripFormData()/validateAlumniTripForm()
+         read .value/.checked off them) -->
+    <div style="display:none">
+        <form id="alumniTripForm">
+            <select id="tripSelect"><option value="trip1">Trip 1</option></select>
+            <input id="fullName">
+            <input id="email">
+            <input id="phone">
+            <input id="emergencyContactName">
+            <input id="emergencyContactPhone">
+            <input id="emergencyContactRelationship">
+            <textarea id="medicalConditions"></textarea>
+            <textarea id="allergies"></textarea>
+            <input id="medicalAidDetails">
+            <p id="waiverTextContainer"></p>
+            <input type="checkbox" id="waiverAgreed">
+            <p id="popiaTextContainer"></p>
+            <input type="checkbox" id="popiaConsent">
+            <canvas id="tripSignaturePad"></canvas>
+            <button type="button" id="clearTripSignature"></button>
+            <input type="hidden" id="tripSignature">
+            <input id="companyWebsite">
+            <button type="submit" id="submitTripFormBtn"></button>
+        </form>
+        <div id="tripFormSection"></div>
+        <div id="tripSuccessSection"></div>
+        <p id="tripSuccessMessage"></p>
+    </div>
+
+    <p class="running" id="running">Running tests…</p>
+    <div id="results"></div>
+
+    <script type="module">
+        // ─── Mock globals (must be set before any import()) ──────────────────────
+
+        // signature.js calls `new SignaturePad(canvas, opts)` at the TOP LEVEL
+        // (outside any function), so this class must exist before any dynamic import.
+        window.SignaturePad = class {
+            constructor(canvas, opts) {}
+            on() {} off() {} clear() {}
+            isEmpty() { return true; }
+            toDataURL() { return 'data:image/png;base64,'; }
+            fromDataURL() {}
+        };
+
+        // ─── Mock Firebase globals ────────────────────────────────────────────────
+        window.firebaseDb = {};
+        window.firebaseAuth = { currentUser: null };
+        window.firebaseDoc = (_db, _col, _id) => ({ id: _id || 'mockRef' });
+        window.firebaseGetDoc = async () => ({ exists: () => false, data: () => ({}) });
+        window.firebaseSetDoc = async () => {};
+        window.firebaseUpdateDoc = async () => {};
+        window.firebaseGetDocs = async () => ({ docs: [] });
+        window.firebaseQuery = (...args) => args[0];
+        window.firebaseWhere = () => {};
+        window.firebaseCollection = () => {};
+        window.firebaseAddDoc = async () => ({ id: 'newDocId' });
+        window.firebaseOnSnapshot = (_ref, cb) => { return () => {}; };
+        window.firebaseServerTimestamp = () => new Date();
+        window.firebaseRunTransaction = async (db, fn) => fn({
+            get: async () => ({ exists: () => false, data: () => ({}) }),
+            update: () => {},
+            set: () => {}
+        });
+        window.firebaseOnAuthStateChanged = (_auth, cb) => cb(null);
+        window.firebaseSignInWithPopup = async () => {};
+        window.firebaseSignOut = async () => {};
+        window.firebaseGoogleAuthProvider = function() {};
+        window.firebaseStorage = {};
+        window.firebaseRef = () => {};
+        window.firebaseUploadBytes = async () => {};
+        window.firebaseGetDownloadURL = async () => 'https://mock.url/file';
+        window.firebaseArrayUnion = (...args) => args;
+        window.firebaseFunctions = {};
+        window.firebaseCallable = (_fns, name) => async (data) => ({ data: { success: true } });
+
+        // App-level globals used by modules
+        window.setupApplicationListener = (_id, _cb) => () => {};
+        window.loadDashboardData = () => {};
+        window.showToast = (msg, type) => console.log(`[toast:${type}] ${msg}`);
+
+        // ─── Minimal test harness ────────────────────────────────────────────────
+        const results = [];
+
+        async function test(name, strategy, fn) {
+            try {
+                await fn();
+                results.push({ name, strategy, pass: true });
+            } catch (e) {
+                results.push({ name, strategy, pass: false, error: e.message });
+            }
+        }
+
+        function assert(condition, msg) {
+            if (!condition) throw new Error(msg);
+        }
+
+        function render() {
+            const container = document.getElementById('results');
+            const passing = results.filter(r => r.pass).length;
+            const total = results.length;
+
+            const allPass = passing === total;
+            const summary = document.createElement('div');
+            summary.className = `summary ${allPass ? 'all-pass' : 'has-fail'}`;
+            summary.textContent = allPass
+                ? `✓ All ${total} tests passed`
+                : `${passing}/${total} tests passed`;
+            container.appendChild(summary);
+
+            for (const r of results) {
+                const div = document.createElement('div');
+                div.className = `test ${r.pass ? 'pass' : 'fail'}`;
+                div.innerHTML = `
+                    <div class="test-name">${r.pass ? '✓' : '✗'} ${r.name}</div>
+                    <div class="test-strategy">${r.strategy}</div>
+                    ${r.error ? `<div class="test-error">${r.error}</div>` : ''}
+                `;
+                container.appendChild(div);
+            }
+
+            document.getElementById('running').remove();
+        }
+
+        // ─── Tests ──────────────────────────────────────────────────────────────
+
+        // BUG 4 — form.js wrong status string
+        await test(
+            'Bug 4 — form.js checks application_paid (not paid)',
+            'source verification',
+            async () => {
+                const src = await fetch('../applicationScripts/form.js').then(r => r.text());
+                assert(
+                    src.includes("paymentStatus === 'application_paid'"),
+                    "form.js does not contain paymentStatus === 'application_paid'"
+                );
+                assert(
+                    !src.includes("paymentStatus === 'paid'"),
+                    "form.js still has the old paymentStatus === 'paid' check"
+                );
+            }
+        );
+
+        // BUG 5 — stacking delegated click listener
+        await test(
+            'Bug 5 — monthlyPaymentListenerAdded flag guards the delegated click listener',
+            'source verification',
+            async () => {
+                const src = await fetch('../applicationScripts/dashboard.js').then(r => r.text());
+
+                // Flag must be declared at module level
+                assert(
+                    src.includes('monthlyPaymentListenerAdded'),
+                    'monthlyPaymentListenerAdded flag not found in dashboard.js'
+                );
+
+                // The delegated click listener must be wrapped by the flag
+                const flagIdx = src.indexOf('monthlyPaymentListenerAdded = true');
+                assert(flagIdx !== -1, "monthlyPaymentListenerAdded = true assignment not found");
+
+                const afterFlag = src.slice(flagIdx, flagIdx + 400);
+                assert(
+                    afterFlag.includes("document.addEventListener('click'"),
+                    "document click listener not found immediately after the flag is set"
+                );
+            }
+        );
+
+        // BUG 13 — double-charge guard
+        await test(
+            'Bug 13 — initiatePaystackPayment checks firebaseGetDoc for application_paid before opening Paystack',
+            'source verification',
+            async () => {
+                const src = await fetch('../applicationScripts/payments.js').then(r => r.text());
+
+                // Locate the function
+                const fnStart = src.indexOf('async function initiatePaystackPayment');
+                assert(fnStart !== -1, 'initiatePaystackPayment not found in payments.js');
+
+                // Look at the code before the try block (the guard section)
+                const tryIdx = src.indexOf('\n    try {', fnStart);
+                const guardBlock = src.slice(fnStart, tryIdx === -1 ? fnStart + 600 : tryIdx);
+
+                assert(
+                    guardBlock.includes('firebaseGetDoc'),
+                    'No firebaseGetDoc call in the guard section before the try block'
+                );
+                assert(
+                    guardBlock.includes('application_paid'),
+                    'application_paid check not found in the guard section'
+                );
+                assert(
+                    guardBlock.includes('return false'),
+                    'Early return false not found in the guard section'
+                );
+            }
+        );
+
+        // BUG 14 — setDoc without merge:true
+        await test(
+            'Bug 14 — completeApplicationSubmission calls setDoc with { merge: true }',
+            'source verification',
+            async () => {
+                const src = await fetch('../applicationScripts/database.js').then(r => r.text());
+                const fnStart = src.indexOf('async function completeApplicationSubmission');
+                assert(fnStart !== -1, 'completeApplicationSubmission not found in database.js');
+
+                // Slice out just that function's body (up to the next export or end)
+                const nextExport = src.indexOf('\nexport ', fnStart + 1);
+                const fnBody = src.slice(fnStart, nextExport === -1 ? fnStart + 3000 : nextExport);
+
+                assert(
+                    fnBody.includes('{ merge: true }'),
+                    'completeApplicationSubmission does not pass { merge: true } to setDoc'
+                );
+            }
+        );
+
+        // BUG 16 — auth race: handlePaymentReturn called before auth resolves
+        await test(
+            'Bug 16 — handlePaymentReturn is inside onAuthStateChanged, not in initializeApplication',
+            'source verification',
+            async () => {
+                const r16 = await fetch('../applicationScripts/main.js');
+                assert(r16.ok, `Failed to fetch main.js: HTTP ${r16.status}`);
+                const src = await r16.text();
+
+                // 1. initializeApplication body must NOT contain handlePaymentReturn
+                const initStart = src.indexOf('async function initializeApplication');
+                assert(initStart !== -1, 'initializeApplication not found in main.js');
+                const initEnd = src.indexOf('\nasync function ', initStart + 1);
+                const initBody = src.slice(initStart, initEnd === -1 ? initStart + 1000 : initEnd);
+                assert(
+                    !initBody.includes('handlePaymentReturn'),
+                    'handlePaymentReturn is still called inside initializeApplication'
+                );
+
+                // 2. handlePaymentReturn must appear AFTER firebaseOnAuthStateChanged
+                //    (capital O — the actual identifier used in the file)
+                assert(
+                    src.includes('firebaseOnAuthStateChanged'),
+                    'firebaseOnAuthStateChanged not found in main.js'
+                );
+                const authIdx = src.indexOf('firebaseOnAuthStateChanged');
+                // Search for handlePaymentReturn STARTING from the auth listener position
+                // (so we skip the import statement at the top of the file)
+                const hprAfterAuth = src.indexOf('handlePaymentReturn', authIdx);
+                assert(
+                    hprAfterAuth !== -1,
+                    'handlePaymentReturn not found after firebaseOnAuthStateChanged — not inside the callback'
+                );
+            }
+        );
+
+        // BUG 17 — monthly payment race condition
+        await test(
+            'Bug 17 — recordMonthlyPaymentAndCheckCompletion exists and uses firebaseRunTransaction',
+            'source verification',
+            async () => {
+                const src = await fetch('../applicationScripts/payments.js').then(r => r.text());
+
+                assert(
+                    src.includes('recordMonthlyPaymentAndCheckCompletion'),
+                    'Transaction-based function not found in payments.js'
+                );
+
+                const fnStart = src.indexOf('async function recordMonthlyPaymentAndCheckCompletion');
+                assert(fnStart !== -1, 'Function declaration not found');
+
+                const fnBody = src.slice(fnStart, fnStart + 2000);
+                assert(
+                    fnBody.includes('firebaseRunTransaction'),
+                    'firebaseRunTransaction not called inside recordMonthlyPaymentAndCheckCompletion'
+                );
+
+                // Also verify handleTuitionPaymentCallback uses the new function
+                assert(
+                    src.includes('await recordMonthlyPaymentAndCheckCompletion('),
+                    'handleTuitionPaymentCallback does not call the new transaction function'
+                );
+            }
+        );
+
+        // ════════════════════════════════════════════════════════════════════════
+        // MEDIUM PRIORITY BUGS
+        // ════════════════════════════════════════════════════════════════════════
+
+        // BUG 6 — Redundant redirect after subject fee payment
+        await test(
+            'Bug 6 — Subject fee callback uses loadDashboardData, not window.location.href redirect',
+            'source verification',
+            async () => {
+                const src = await fetch('../applicationScripts/payments.js').then(r => r.text());
+
+                // Find the subject fees else branch inside handlePaystackCallback
+                const callbackStart = src.indexOf('async function handlePaystackCallback');
+                const callbackBody = src.slice(callbackStart, callbackStart + 3000);
+
+                assert(
+                    !callbackBody.includes('window.location.href'),
+                    'window.location.href redirect still present in handlePaystackCallback'
+                );
+                assert(
+                    callbackBody.includes('loadDashboardData'),
+                    'loadDashboardData call not found in handlePaystackCallback subject fees branch'
+                );
+            }
+        );
+
+        // BUG 7 — Broken script reference in portal.html
+        await test(
+            'Bug 7 — portal.html does not reference the non-existent js/portal.js',
+            'source verification',
+            async () => {
+                const src = await fetch('../pages/portal.html').then(r => r.text());
+                assert(
+                    !src.includes('js/portal.js'),
+                    'portal.html still has <script src="js/portal.js"> which does not exist'
+                );
+            }
+        );
+
+        // BUG 8 — Admin Login button goes nowhere
+        await test(
+            'Bug 8 — portal.html Admin Login button links to admin.html',
+            'source verification',
+            async () => {
+                const src = await fetch('../pages/portal.html').then(r => r.text());
+                // Check the Admin Login button specifically (not all href="#" in the file)
+                assert(
+                    src.includes('href="admin.html"') && src.includes('>Admin Login<'),
+                    'Admin Login button does not link to admin.html'
+                );
+                const adminBtnIdx = src.indexOf('>Admin Login<');
+                const adminBtnContext = src.slice(Math.max(0, adminBtnIdx - 60), adminBtnIdx);
+                assert(
+                    !adminBtnContext.includes('href="#"'),
+                    'Admin Login button still has href="#"'
+                );
+            }
+        );
+
+        // BUG 9 — Analytics section unreachable
+        await test(
+            'Bug 9 — admin.html sidebar has analytics nav item and admin.js has initializeAnalyticsCharts',
+            'source verification',
+            async () => {
+                const adminHtml = await fetch('../pages/admin.html').then(r => r.text());
+                assert(
+                    adminHtml.includes('data-section="analytics"'),
+                    'admin.html sidebar missing data-section="analytics" nav item'
+                );
+
+                const adminJs = await fetch('../scripts/admin.js').then(r => r.text());
+                assert(
+                    adminJs.includes('initializeAnalyticsCharts'),
+                    'admin.js missing initializeAnalyticsCharts function'
+                );
+                assert(
+                    adminJs.includes("sectionId === 'analytics'"),
+                    'showSection does not call initializeAnalyticsCharts when analytics is selected'
+                );
+            }
+        );
+
+        // BUG 15 — Monthly installment payable twice before button disables
+        await test(
+            'Bug 15 — initiateTuitionPayment checks firebaseGetDoc for already-paid month before opening Paystack',
+            'source verification',
+            async () => {
+                const src = await fetch('../applicationScripts/payments.js').then(r => r.text());
+
+                const fnStart = src.indexOf('export async function initiateTuitionPayment');
+                assert(fnStart !== -1, 'initiateTuitionPayment not found in payments.js');
+
+                // Guard block sits between the isProcessing check and the try {
+                const tryIdx = src.indexOf('\n    try {', fnStart);
+                const guardBlock = src.slice(fnStart, tryIdx === -1 ? fnStart + 800 : tryIdx);
+
+                assert(
+                    guardBlock.includes('firebaseGetDoc'),
+                    'No firebaseGetDoc call in guard section of initiateTuitionPayment'
+                );
+                assert(
+                    guardBlock.includes('checkIfMonthIsPaid'),
+                    'checkIfMonthIsPaid not called in the guard section'
+                );
+                assert(
+                    guardBlock.includes('return false'),
+                    'Early return false not found in the guard section'
+                );
+            }
+        );
+
+        // BUG 18 — Admin uses stale in-memory data for completion check
+        await test(
+            'Bug 18 — markPaymentAsPaid does a fresh getDoc before checking if all months are paid',
+            'source verification',
+            async () => {
+                const src = await fetch('../scripts/admin.js').then(r => r.text());
+
+                const fnStart = src.indexOf('async function markPaymentAsPaid');
+                assert(fnStart !== -1, 'markPaymentAsPaid not found in admin.js');
+
+                const fnEnd = src.indexOf('\n    async function ', fnStart + 1);
+                const fnBody = src.slice(fnStart, fnEnd === -1 ? fnStart + 2000 : fnEnd);
+
+                assert(
+                    fnBody.includes('getDoc'),
+                    'markPaymentAsPaid does not call getDoc for a fresh Firestore read'
+                );
+                assert(
+                    fnBody.includes('freshPayments'),
+                    'markPaymentAsPaid does not use fresh payment data (freshPayments) for completion check'
+                );
+                assert(
+                    !fnBody.includes('currentApplication.payments || {}'),
+                    'markPaymentAsPaid still uses stale currentApplication.payments'
+                );
+            }
+        );
+
+        // ════════════════════════════════════════════════════════════════════════
+        // LOW PRIORITY BUGS
+        // ════════════════════════════════════════════════════════════════════════
+
+        // BUG 10 — scripts/collapsable.js is unused (deleted)
+        await test(
+            'Bug 10 — scripts/collapsable.js has been deleted (unreferenced duplicate)',
+            'source verification',
+            async () => {
+                const r = await fetch('../scripts/collapsable.js');
+                assert(!r.ok, `scripts/collapsable.js still exists (HTTP ${r.status}) — should have been deleted`);
+            }
+        );
+
+        // BUG 12 — admin.html had duplicate <meta viewport> tags
+        await test(
+            'Bug 12 — admin.html has exactly one viewport meta tag',
+            'source verification',
+            async () => {
+                const src = await fetch('../pages/admin.html').then(r => r.text());
+                const matches = src.match(/<meta[^>]+name="viewport"[^>]*>/gi);
+                const count = matches ? matches.length : 0;
+                assert(count === 1, `Expected 1 viewport meta tag, found ${count}`);
+            }
+        );
+
+        // BUG 19 follow-up — withErrorHandling invokes onError before rethrowing
+        await test(
+            'Bug 19 follow-up — withErrorHandling invokes onError before rethrowing (execution test)',
+            'live execution',
+            async () => {
+                const { withErrorHandling } = await import('../applicationScripts/utilities.js');
+                let onErrorCalledWith = null;
+                let threw = false;
+                try {
+                    await withErrorHandling(
+                        async () => { throw new Error('boom'); },
+                        'test error message',
+                        (err) => { onErrorCalledWith = err; }
+                    );
+                } catch (e) {
+                    threw = true;
+                }
+                assert(threw, 'withErrorHandling did not rethrow the error — callers would think the operation succeeded');
+                assert(
+                    onErrorCalledWith instanceof Error && onErrorCalledWith.message === 'boom',
+                    'onError callback was not invoked with the original error — a failed payment operation would leave its "Pay Now" button stuck disabled'
+                );
+            }
+        );
+
+        // BUG 19 follow-up — verifyPaystackPayment retries before reporting an unverifiable outcome
+        await test(
+            'Bug 19 follow-up — verifyPaystackPayment retries before reporting verificationErrored',
+            'source verification',
+            async () => {
+                const src = await fetch('../applicationScripts/payments.js').then(r => r.text());
+                const fnStart = src.indexOf('async function verifyPaystackPayment');
+                assert(fnStart !== -1, 'verifyPaystackPayment not found in payments.js');
+                const fnEnd = src.indexOf('\nasync function ', fnStart + 1);
+                const fnBody = src.slice(fnStart, fnEnd === -1 ? fnStart + 1500 : fnEnd);
+                assert(
+                    fnBody.includes('maxAttempts'),
+                    'verifyPaystackPayment no longer retries — a single transient network error would be reported as a hard payment failure'
+                );
+                assert(
+                    fnBody.includes('verificationErrored: true'),
+                    'verifyPaystackPayment does not distinguish "could not reach server" from a genuine Paystack decline'
+                );
+            }
+        );
+
+        // BUG 19 follow-up — handleTuitionPaymentCallback no longer strands the pay button
+        await test(
+            'Bug 19 follow-up — handleTuitionPaymentCallback resets the UI on every outcome, not just success',
+            'source verification',
+            async () => {
+                const src = await fetch('../applicationScripts/payments.js').then(r => r.text());
+                const fnStart = src.indexOf('async function handleTuitionPaymentCallback');
+                assert(fnStart !== -1, 'handleTuitionPaymentCallback not found in payments.js');
+                const fnEnd = src.indexOf('\n// Atomically writes', fnStart);
+                const fnBody = src.slice(fnStart, fnEnd === -1 ? fnStart + 3000 : fnEnd);
+
+                assert(
+                    fnBody.includes('verificationErrored'),
+                    'handleTuitionPaymentCallback does not check verifyResult.verificationErrored — an unverifiable outcome would be shown as a plain retry-able failure, risking a double charge'
+                );
+                assert(
+                    fnBody.includes('lockMonthButtonForSupport'),
+                    'handleTuitionPaymentCallback does not lock the button on an unverifiable outcome — it would silently reset to "Pay Now" on the next refresh'
+                );
+                assert(
+                    fnBody.includes('loadDashboardData'),
+                    'handleTuitionPaymentCallback does not refresh the dashboard on a genuine decline — the button stays stuck on "Processing..."'
+                );
+            }
+        );
+
+        // BUG 19 follow-up — cancelling the tuition payment modal must not strand the button either
+        await test(
+            'Bug 19 follow-up — cancelling the tuition Paystack modal refreshes the dashboard instead of stranding the button',
+            'source verification',
+            async () => {
+                const src = await fetch('../applicationScripts/payments.js').then(r => r.text());
+                const fnStart = src.indexOf('export async function initiateTuitionPayment');
+                assert(fnStart !== -1, 'initiateTuitionPayment not found in payments.js');
+                const onCloseIdx = src.indexOf('onClose: function()', fnStart);
+                assert(onCloseIdx !== -1, 'onClose handler not found in initiateTuitionPayment');
+                const onCloseEnd = src.indexOf('\n            }', onCloseIdx);
+                const onCloseBody = src.slice(onCloseIdx, onCloseEnd === -1 ? onCloseIdx + 400 : onCloseEnd);
+                assert(
+                    onCloseBody.includes('loadDashboardData'),
+                    'Cancelling the tuition payment modal does not refresh the dashboard — the button stays stuck on "Processing..."'
+                );
+            }
+        );
+
+        // ════════════════════════════════════════════════════════════════════════
+        // ALUMNI TRIP CONSENT FORM
+        // ════════════════════════════════════════════════════════════════════════
+
+        await test(
+            'Alumni Trip — validateAlumniTripForm rejects missing required fields',
+            'live execution',
+            async () => {
+                const { validateAlumniTripForm } = await import('../alumniTripScripts/form.js');
+                const errors = validateAlumniTripForm({
+                    tripId: '', fullName: '', email: '', phone: '',
+                    emergencyContactName: '', emergencyContactPhone: '', emergencyContactRelationship: '',
+                    waiverAgreed: false, popiaConsent: false
+                });
+                assert(Array.isArray(errors) && errors.length > 0, 'Expected validation errors for an empty form, got none');
+            }
+        );
+
+        await test(
+            'Alumni Trip — validateAlumniTripForm rejects invalid email/phone (reused validateEmail/validatePhone)',
+            'live execution',
+            async () => {
+                const { validateAlumniTripForm } = await import('../alumniTripScripts/form.js');
+                const errors = validateAlumniTripForm({
+                    tripId: 'trip1', fullName: 'Jane Doe', email: 'not-an-email', phone: '123',
+                    emergencyContactName: 'John Doe', emergencyContactPhone: '123', emergencyContactRelationship: 'Parent',
+                    waiverAgreed: true, popiaConsent: true
+                });
+                assert(errors && errors.some(e => e.includes('email')), 'Expected an email validation error');
+                assert(errors && errors.some(e => e.includes('phone')), 'Expected a phone validation error');
+            }
+        );
+
+        await test(
+            'Alumni Trip — validateAlumniTripForm rejects when signature is empty',
+            'live execution',
+            async () => {
+                const { validateAlumniTripForm } = await import('../alumniTripScripts/form.js');
+                // The mocked SignaturePad.isEmpty() defaults to true (unsigned pad)
+                const errors = validateAlumniTripForm({
+                    tripId: 'trip1', fullName: 'Jane Doe', email: 'jane@example.com', phone: '0821234567',
+                    emergencyContactName: 'John Doe', emergencyContactPhone: '0821234567', emergencyContactRelationship: 'Parent',
+                    waiverAgreed: true, popiaConsent: true
+                });
+                assert(errors && errors.some(e => e.toLowerCase().includes('signature')), 'Expected a signature-required error');
+            }
+        );
+
+        await test(
+            'Alumni Trip — validateAlumniTripForm rejects when waiver/POPIA checkboxes are unchecked',
+            'live execution',
+            async () => {
+                const { validateAlumniTripForm } = await import('../alumniTripScripts/form.js');
+                const errors = validateAlumniTripForm({
+                    tripId: 'trip1', fullName: 'Jane Doe', email: 'jane@example.com', phone: '0821234567',
+                    emergencyContactName: 'John Doe', emergencyContactPhone: '0821234567', emergencyContactRelationship: 'Parent',
+                    waiverAgreed: false, popiaConsent: false
+                });
+                assert(errors && errors.some(e => e.toLowerCase().includes('waiver')), 'Expected a waiver-agreement error');
+                assert(errors && errors.some(e => e.toLowerCase().includes('personal information')), 'Expected a POPIA-consent error');
+            }
+        );
+
+        await test(
+            'Alumni Trip — validateAlumniTripForm passes for a fully valid, signed form',
+            'live execution',
+            async () => {
+                const { validateAlumniTripForm } = await import('../alumniTripScripts/form.js');
+                const { signaturePad } = await import('../alumniTripScripts/signature.js');
+                const originalIsEmpty = signaturePad.isEmpty;
+                signaturePad.isEmpty = () => false; // simulate a signed pad
+                try {
+                    const errors = validateAlumniTripForm({
+                        tripId: 'trip1', fullName: 'Jane Doe', email: 'jane@example.com', phone: '0821234567',
+                        emergencyContactName: 'John Doe', emergencyContactPhone: '0821234567', emergencyContactRelationship: 'Parent',
+                        waiverAgreed: true, popiaConsent: true
+                    });
+                    assert(errors === null, `Expected no validation errors, got: ${JSON.stringify(errors)}`);
+                } finally {
+                    signaturePad.isEmpty = originalIsEmpty;
+                }
+            }
+        );
+
+        await test(
+            'Alumni Trip — loadActiveTrips() populates the trip <select> from Firestore docs',
+            'live execution',
+            async () => {
+                const { loadActiveTrips } = await import('../alumniTripScripts/trips.js');
+
+                const originalGetDocs = window.firebaseGetDocs;
+                window.firebaseGetDocs = async () => ({
+                    empty: false,
+                    forEach: (cb) => {
+                        cb({ id: 'trip1', data: () => ({ name: 'Cape Town Expo', tripDate: '2026-09-01' }) });
+                        cb({ id: 'trip2', data: () => ({ name: 'Joburg Career Day', tripDate: '2026-10-15' }) });
+                    }
+                });
+                try {
+                    await loadActiveTrips();
+                    const select = document.getElementById('tripSelect');
+                    const optionValues = Array.from(select.options).map(o => o.value);
+                    assert(optionValues.includes('trip1') && optionValues.includes('trip2'), 'Expected both mocked trips as options');
+                } finally {
+                    window.firebaseGetDocs = originalGetDocs;
+                }
+            }
+        );
+
+        await test(
+            'Alumni Trip — submit.js treats a duplicate-submission response as an info message, not an error',
+            'source verification',
+            async () => {
+                const src = await fetch('../alumniTripScripts/submit.js').then(r => r.text());
+                const fnStart = src.indexOf('export async function handleAlumniTripSubmit');
+                assert(fnStart !== -1, 'handleAlumniTripSubmit not found in submit.js');
+                assert(
+                    src.includes("response.duplicate") && src.includes("'info'"),
+                    "handleAlumniTripSubmit does not branch on response.duplicate with an 'info' toast"
+                );
+            }
+        );
+
+        await test(
+            'Alumni Trip — honeypot field is included unmodified in the submitted payload',
+            'live execution',
+            async () => {
+                document.getElementById('companyWebsite').value = '';
+                const { collectAlumniTripFormData } = await import('../alumniTripScripts/form.js');
+                const data = collectAlumniTripFormData();
+                assert('honeypot' in data, 'Payload does not include a honeypot field');
+                assert(data.honeypot === '', 'Honeypot field should default to empty for a real user');
+            }
+        );
+
+        await test(
+            'Alumni Trip — client and Cloud Function waiver/POPIA copy stay in sync',
+            'source verification',
+            async () => {
+                const clientSrc = await fetch('../alumniTripScripts/constants.js').then(r => r.text());
+                const fnSrc = await fetch('../functions/index.js').then(r => r.text());
+                // Spot-check distinctive phrases rather than a full byte-for-byte
+                // compare -- these two files are kept in sync by hand (no shared
+                // module between functions/ and the browser), so this guards
+                // against one copy drifting without the other being updated.
+                // Phrases must sit inside a single string-literal segment in
+                // both files (the text is built from several "..." + "..."
+                // pieces) -- a phrase spanning a concatenation join wouldn't
+                // appear contiguously in the raw source this test fetches.
+                const waiverPhrase = 'gross negligence or wilful misconduct';
+                const popiaPhrase = 'personal information (including medical information)';
+                assert(clientSrc.includes(waiverPhrase), `Client waiver text missing distinctive phrase: "${waiverPhrase}"`);
+                assert(fnSrc.includes(waiverPhrase), `Cloud Function waiver text missing distinctive phrase: "${waiverPhrase}"`);
+                assert(clientSrc.includes(popiaPhrase), `Client POPIA text missing distinctive phrase: "${popiaPhrase}"`);
+                assert(fnSrc.includes(popiaPhrase), `Cloud Function POPIA text missing distinctive phrase: "${popiaPhrase}"`);
+            }
+        );
+
+        // ─── Render results ──────────────────────────────────────────────────────
+        render();
+    </script>
+</body>
+</html>
