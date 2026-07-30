@@ -44,6 +44,7 @@ export const elements = {
   formSection: document.getElementById('tripFormSection'),
   successSection: document.getElementById('tripSuccessSection'),
   successMessage: document.getElementById('tripSuccessMessage'),
+  signUpAnotherTripBtn: document.getElementById('signUpAnotherTripBtn'),
   toastContainer: document.getElementById('toastContainer'),
   currentYear: document.getElementById('currentYear')
 };

@@ -735,6 +735,41 @@
             }
         );
 
+        await test(
+            'Alumni Trip — a recorded submission survives a simulated page reload (no false "form is blank" impression)',
+            'live execution',
+            async () => {
+                const STORAGE_KEY = 'amsaAlumniTripSubmissions';
+                const original = localStorage.getItem(STORAGE_KEY);
+                localStorage.removeItem(STORAGE_KEY);
+                try {
+                    const { recordSubmission, getStoredSubmissions } = await import('../alumniTripScripts/submissionHistory.js');
+
+                    assert(getStoredSubmissions().length === 0, 'Expected no prior submissions before recording one');
+
+                    recordSubmission('trip1', 'Cape Town Expo — 2026-09-01');
+                    // Simulate a reload: a fresh read from the same localStorage key,
+                    // exactly what main.js does on DOMContentLoaded.
+                    const afterReload = getStoredSubmissions();
+                    assert(afterReload.length === 1, 'Submission was not persisted for a simulated reload to find');
+                    assert(afterReload[0].tripId === 'trip1', 'Persisted record has the wrong tripId');
+                    assert(afterReload[0].tripLabel === 'Cape Town Expo — 2026-09-01', 'Persisted record has the wrong tripLabel');
+
+                    // Submitting again for the SAME trip (e.g. the duplicate-response
+                    // path) must update in place, not accumulate a second entry.
+                    recordSubmission('trip1', 'Cape Town Expo — 2026-09-01');
+                    assert(getStoredSubmissions().length === 1, 'Recording the same tripId twice should not create a duplicate entry');
+
+                    // A genuinely different trip does get its own entry.
+                    recordSubmission('trip2', 'Joburg Career Day — 2026-10-15');
+                    assert(getStoredSubmissions().length === 2, 'A second, different trip should add a new entry');
+                } finally {
+                    if (original === null) localStorage.removeItem(STORAGE_KEY);
+                    else localStorage.setItem(STORAGE_KEY, original);
+                }
+            }
+        );
+
         // ─── Render results ──────────────────────────────────────────────────────
         render();
     </script>

@@ -2,6 +2,7 @@ import { elements } from './constants.js';
 import { showToast, retryOperation } from '../applicationScripts/utilities.js';
 import { collectAlumniTripFormData, validateAlumniTripForm } from './form.js';
 import { signaturePad, clearTripSignature } from './signature.js';
+import { recordSubmission } from './submissionHistory.js';
 
 let isSubmitting = false;
 
@@ -41,7 +42,12 @@ export async function handleAlumniTripSubmit(event) {
             showToast('Your consent form has been submitted successfully.', 'success');
         }
 
-        showSuccessState(response);
+        // Grab the selected trip's display text before form.reset() clears the <select>.
+        const selectedOption = elements.tripSelect.options[elements.tripSelect.selectedIndex];
+        const tripLabel = selectedOption ? selectedOption.textContent : data.tripId;
+        recordSubmission(data.tripId, tripLabel);
+
+        showSuccessState(response, tripLabel);
         elements.form.reset();
         clearTripSignature();
 
@@ -55,13 +61,13 @@ export async function handleAlumniTripSubmit(event) {
     }
 }
 
-function showSuccessState(response) {
+function showSuccessState(response, tripLabel) {
     if (!elements.formSection || !elements.successSection) return;
     elements.formSection.style.display = 'none';
     elements.successSection.style.display = 'block';
     if (elements.successMessage) {
         elements.successMessage.textContent = response.duplicate ?
-            "You've already submitted a consent form for this trip. No further action is needed." :
-            "Thank you — your consent form has been recorded.";
+            `You've already submitted a consent form for ${tripLabel}. No further action is needed.` :
+            `Thank you — your consent form for ${tripLabel} has been recorded.`;
     }
 }
