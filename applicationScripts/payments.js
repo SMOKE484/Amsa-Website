@@ -337,9 +337,18 @@ async function handlePaystackCallback(response, applicationData, paymentType) {
             
             paymentState.isProcessing = false;
             paymentState.retryCount = 0;
-        }
-            else {
-            // Payment failed or not verified
+        } else if (verifyResult.verificationErrored) {
+            // Paystack's callback reported success, but we couldn't reach our server to confirm it
+            // even after retries — don't invite a blind retry, the card may already be charged.
+            showToast(
+                `We couldn't confirm your payment due to a connection issue. If you were charged, ` +
+                `please do NOT pay again — contact support with reference "${response.reference}" ` +
+                `and we'll verify and credit it manually.`,
+                'error'
+            );
+            paymentState.isProcessing = false;
+        } else {
+            // Server-confirmed non-success — safe to let the student retry.
             showToast('Payment verification failed. Please try again.', 'error');
             paymentState.isProcessing = false;
         }
@@ -357,15 +366,25 @@ async function handlePaystackCallback(response, applicationData, paymentType) {
     }
 }
 
+// Retries a few times before giving up — a transient network/cold-start blip here must not be
+// reported to the student as "payment failed" when Paystack may have already charged their card.
 async function verifyPaystackPayment(reference) {
-    try {
-        const verifyFn = window.firebaseCallable(window.firebaseFunctions, 'verifyPaystackPayment');
-        const result = await verifyFn({ reference });
-        return result.data; // { success, allPaid, cached, message }
-    } catch (error) {
-        console.error('Payment verification failed:', error);
-        return { success: false };
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const verifyFn = window.firebaseCallable(window.firebaseFunctions, 'verifyPaystackPayment');
+            const result = await verifyFn({ reference });
+            return result.data; // { success, allPaid, cached, message } — server-confirmed outcome, trustworthy either way
+        } catch (error) {
+            console.error(`Payment verification attempt ${attempt}/${maxAttempts} failed:`, error);
+            if (attempt < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 1500 * attempt));
+            }
+        }
     }
+    // Every attempt failed to even reach our server — we cannot tell whether Paystack's charge
+    // succeeded. Distinct from a server-confirmed decline; callers must not treat this as "safe to retry".
+    return { success: false, verificationErrored: true };
 }
 
 // Debug function for monthly payments
@@ -506,6 +525,8 @@ export async function initiateTuitionPayment(applicationData, paymentPlan, month
                 paymentState.isProcessing = false;
                 showPaymentLoading(false);
                 showToast('Tuition payment cancelled. You can pay later.', 'info');
+                // The button is stuck on "Processing..." at this point — refresh so it resets.
+                if (window.loadDashboardData) window.loadDashboardData(applicationData.id);
             }
         };
 
@@ -591,10 +612,27 @@ async function handleTuitionPaymentCallback(response, applicationData, paymentPl
                 }
             }, 2000);
             
+        } else if (verifyResult.verificationErrored) {
+            // Paystack's callback reported success, but we couldn't reach our server to confirm it
+            // even after retries — the card may already be charged. Don't invite a blind retry:
+            // lock this month's button instead of leaving it stuck on "Processing..." or letting a
+            // later refresh silently re-enable "Pay Now".
+            showToast(
+                `We couldn't confirm your ${month || 'tuition'} payment due to a connection issue. ` +
+                `If you were charged, please do NOT pay again — contact support with reference "${response.reference}" ` +
+                `and we'll verify and credit it manually.`,
+                'error'
+            );
+            paymentState.isProcessing = false;
+            if (month) lockMonthButtonForSupport(month);
         } else {
-            // Payment failed
+            // Server-confirmed non-success (either Paystack itself, or our verify call, said this
+            // genuinely didn't go through) — safe to let the student retry.
             showToast('Payment failed or not verified. Please try again.', 'error');
             paymentState.isProcessing = false;
+            // The button is currently stuck on "Processing..." (see initializeMonthlyPayments/
+            // initializeTuitionPayments in main.js) — refresh so it returns to a clickable state.
+            if (window.loadDashboardData) window.loadDashboardData(applicationData.id);
         }
     } catch (error) {
         console.error('Error handling tuition payment callback:', error);
@@ -1050,6 +1088,19 @@ export function generateMonthlyPayments(applicationData, paymentPlan) {
     console.log('Monthly payments generated successfully for plan:', paymentPlan);
     console.log('Full application data for payments:', applicationData);
     console.log('Payments data specifically:', applicationData.payments);
+}
+
+// Used when we genuinely don't know if a month's payment went through (verification call itself
+// failed after retries) — locks that one button so the student can't blindly retry a payment that
+// may have already succeeded, instead of silently resetting it to "Pay Now" on the next refresh.
+function lockMonthButtonForSupport(month) {
+    const btn = document.querySelector(`.pay-month-btn[data-month="${month}"]`);
+    if (!btn) return;
+    btn.disabled = true;
+    btn.removeAttribute('data-original-content'); // don't let updateButtonState restore stale markup later
+    btn.classList.remove('btn-primary', 'btn-success');
+    btn.classList.add('btn-warning');
+    btn.innerHTML = '<i class="fas fa-headset"></i> Contact Support';
 }
 
 // FIXED: Check if month is paid - properly handles Firebase nested structure

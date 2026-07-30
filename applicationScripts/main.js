@@ -421,7 +421,8 @@ function initializeTuitionPayments() {
                         applicationData.paymentStartDate = new Date().toISOString();
                     }
 
-                    await initiateTuitionPayment(applicationData, paymentPlan, null);
+                    const opened = await initiateTuitionPayment(applicationData, paymentPlan, null);
+                    if (!opened) updateButtonState(payButton, false);
 
                 } else {
                     showToast('Application data not found', 'error');
@@ -470,7 +471,11 @@ function initializeMonthlyPayments() {
                          return;
                     }
 
-                    await initiateTuitionPayment(applicationData, paymentPlan, month);
+                    const opened = await initiateTuitionPayment(applicationData, paymentPlan, month);
+                    if (!opened) {
+                        updateButtonState(payButton, false);
+                        payButton.disabled = false;
+                    }
 
                 } else {
                     showToast('Application data not found', 'error');

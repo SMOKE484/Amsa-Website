@@ -189,12 +189,13 @@ export function updateProgressIndicator(step) {
 }
 
 // Error boundary for async operations
-export async function withErrorHandling(operation, errorMessage = 'An error occurred') {
+export async function withErrorHandling(operation, errorMessage = 'An error occurred', onError) {
     try {
         return await operation();
     } catch (error) {
         console.error(`${errorMessage}:`, error);
         showToast(errorMessage, 'error');
+        if (typeof onError === 'function') onError(error);
         throw error;
     }
 }
