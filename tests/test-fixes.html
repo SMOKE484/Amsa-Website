@@ -42,29 +42,71 @@
          read .value/.checked off them) -->
     <div style="display:none">
         <form id="tripForm">
+            <h2 id="tripFormTitle"></h2>
             <select id="tripSelect"><option value="trip1">Trip 1</option></select>
-            <input id="fullName">
-            <input id="email">
-            <input id="phone">
+
+            <div id="tripInfoSection">
+                <span id="tripInfoLocation"></span>
+                <span id="tripInfoEventType"></span>
+                <span id="tripInfoOrganizer"></span>
+                <span id="tripInfoIndividualsInCharge"></span>
+                <span id="tripInfoDeparture"></span>
+                <span id="tripInfoReturn"></span>
+                <span id="tripInfoTransportMode"></span>
+            </div>
+
+            <input id="participantName">
+            <input id="birthDate">
+            <span id="birthDateRequiredMarker"></span>
+
+            <div id="yourContactSection">
+                <input id="email">
+                <input id="phone">
+            </div>
+
+            <div id="parentGuardianSection">
+                <input id="parentGuardianName">
+                <input id="parentGuardianAddress">
+                <input id="parentGuardianHomePhone">
+                <input id="parentGuardianWorkPhone">
+                <input id="parentGuardianEmail">
+            </div>
+
             <input id="emergencyContactName">
             <input id="emergencyContactPhone">
             <input id="emergencyContactRelationship">
             <textarea id="medicalConditions"></textarea>
             <textarea id="allergies"></textarea>
             <input id="medicalAidDetails">
-            <p id="waiverTextContainer"></p>
-            <input type="checkbox" id="waiverAgreed">
+
+            <div id="policySectionsContainer"></div>
+            <input type="checkbox" id="agreedToTerms">
             <p id="popiaTextContainer"></p>
             <input type="checkbox" id="popiaConsent">
-            <canvas id="tripSignaturePad"></canvas>
-            <button type="button" id="clearTripSignature"></button>
-            <input type="hidden" id="tripSignature">
+
+            <div id="alumniSignatureSection">
+                <canvas id="signaturePadCanvas"></canvas>
+                <button type="button" id="clearSignatureBtn"></button>
+                <input type="hidden" id="signatureInput">
+            </div>
+            <div id="studentSignatureSection">
+                <canvas id="parentSignaturePadCanvas"></canvas>
+                <button type="button" id="clearParentSignatureBtn"></button>
+                <input type="hidden" id="parentSignatureInput">
+                <canvas id="learnerSignaturePadCanvas"></canvas>
+                <button type="button" id="clearLearnerSignatureBtn"></button>
+                <input type="hidden" id="learnerSignatureInput">
+            </div>
+
             <input id="companyWebsite">
             <button type="submit" id="submitTripFormBtn"></button>
         </form>
         <div id="tripFormSection"></div>
         <div id="tripSuccessSection"></div>
         <p id="tripSuccessMessage"></p>
+        <button type="button" id="signUpAnotherTripBtn"></button>
+        <div id="toastContainer"></div>
+        <span id="currentYear"></span>
     </div>
 
     <p class="running" id="running">Running tests…</p>
@@ -582,14 +624,14 @@
         // ════════════════════════════════════════════════════════════════════════
 
         await test(
-            'Trip — validateTripForm rejects missing required fields',
+            'Trip — validateTripForm rejects missing required fields (alumni path)',
             'live execution',
             async () => {
                 const { validateTripForm } = await import('../tripScripts/form.js');
                 const errors = validateTripForm({
-                    tripId: '', fullName: '', email: '', phone: '',
+                    tripId: '', participantName: '', email: '', phone: '',
                     emergencyContactName: '', emergencyContactPhone: '', emergencyContactRelationship: '',
-                    waiverAgreed: false, popiaConsent: false
+                    agreedToTerms: false, popiaConsent: false
                 });
                 assert(Array.isArray(errors) && errors.length > 0, 'Expected validation errors for an empty form, got none');
             }
@@ -601,9 +643,9 @@
             async () => {
                 const { validateTripForm } = await import('../tripScripts/form.js');
                 const errors = validateTripForm({
-                    tripId: 'trip1', fullName: 'Jane Doe', email: 'not-an-email', phone: '123',
+                    tripId: 'trip1', participantName: 'Jane Doe', email: 'not-an-email', phone: '123',
                     emergencyContactName: 'John Doe', emergencyContactPhone: '123', emergencyContactRelationship: 'Parent',
-                    waiverAgreed: true, popiaConsent: true
+                    agreedToTerms: true, popiaConsent: true
                 });
                 assert(errors && errors.some(e => e.includes('email')), 'Expected an email validation error');
                 assert(errors && errors.some(e => e.includes('phone')), 'Expected a phone validation error');
@@ -611,37 +653,39 @@
         );
 
         await test(
-            'Trip — validateTripForm rejects when signature is empty',
+            'Trip — validateTripForm rejects when signature is empty (alumni path)',
             'live execution',
             async () => {
                 const { validateTripForm } = await import('../tripScripts/form.js');
-                // The mocked SignaturePad.isEmpty() defaults to true (unsigned pad)
+                // The mocked SignaturePad.isEmpty() defaults to true (unsigned pad).
+                // tripsCache has no entry for 'trip1' here, so getSelectedAudienceType()
+                // falls back to 'alumni' -- the single signaturePad is what's checked.
                 const errors = validateTripForm({
-                    tripId: 'trip1', fullName: 'Jane Doe', email: 'jane@example.com', phone: '0821234567',
+                    tripId: 'trip1', participantName: 'Jane Doe', email: 'jane@example.com', phone: '0821234567',
                     emergencyContactName: 'John Doe', emergencyContactPhone: '0821234567', emergencyContactRelationship: 'Parent',
-                    waiverAgreed: true, popiaConsent: true
+                    agreedToTerms: true, popiaConsent: true
                 });
                 assert(errors && errors.some(e => e.toLowerCase().includes('signature')), 'Expected a signature-required error');
             }
         );
 
         await test(
-            'Trip — validateTripForm rejects when waiver/POPIA checkboxes are unchecked',
+            'Trip — validateTripForm rejects when terms/POPIA checkboxes are unchecked',
             'live execution',
             async () => {
                 const { validateTripForm } = await import('../tripScripts/form.js');
                 const errors = validateTripForm({
-                    tripId: 'trip1', fullName: 'Jane Doe', email: 'jane@example.com', phone: '0821234567',
+                    tripId: 'trip1', participantName: 'Jane Doe', email: 'jane@example.com', phone: '0821234567',
                     emergencyContactName: 'John Doe', emergencyContactPhone: '0821234567', emergencyContactRelationship: 'Parent',
-                    waiverAgreed: false, popiaConsent: false
+                    agreedToTerms: false, popiaConsent: false
                 });
-                assert(errors && errors.some(e => e.toLowerCase().includes('waiver')), 'Expected a waiver-agreement error');
+                assert(errors && errors.some(e => e.toLowerCase().includes('terms and conditions')), 'Expected a terms-agreement error');
                 assert(errors && errors.some(e => e.toLowerCase().includes('personal information')), 'Expected a POPIA-consent error');
             }
         );
 
         await test(
-            'Trip — validateTripForm passes for a fully valid, signed form',
+            'Trip — validateTripForm passes for a fully valid, signed alumni form',
             'live execution',
             async () => {
                 const { validateTripForm } = await import('../tripScripts/form.js');
@@ -650,9 +694,9 @@
                 signaturePad.isEmpty = () => false; // simulate a signed pad
                 try {
                     const errors = validateTripForm({
-                        tripId: 'trip1', fullName: 'Jane Doe', email: 'jane@example.com', phone: '0821234567',
+                        tripId: 'trip1', participantName: 'Jane Doe', email: 'jane@example.com', phone: '0821234567',
                         emergencyContactName: 'John Doe', emergencyContactPhone: '0821234567', emergencyContactRelationship: 'Parent',
-                        waiverAgreed: true, popiaConsent: true
+                        agreedToTerms: true, popiaConsent: true
                     });
                     assert(errors === null, `Expected no validation errors, got: ${JSON.stringify(errors)}`);
                 } finally {
@@ -662,17 +706,74 @@
         );
 
         await test(
-            'Trip — loadActiveTrips() populates the trip <select> from Firestore docs',
+            'Trip — student-audience trip requires birth date, parent/guardian fields, and BOTH signatures',
             'live execution',
             async () => {
-                const { loadActiveTrips } = await import('../tripScripts/trips.js');
+                const { validateTripForm } = await import('../tripScripts/form.js');
+                const { tripsCache } = await import('../tripScripts/trips.js');
+                tripsCache.trip1 = { audienceType: 'student' };
+                try {
+                    // Missing birth date, parent fields, and both signatures unsigned.
+                    const errors = validateTripForm({
+                        tripId: 'trip1', participantName: 'Jane Doe',
+                        emergencyContactName: 'John Doe', emergencyContactPhone: '0821234567', emergencyContactRelationship: 'Parent',
+                        agreedToTerms: true, popiaConsent: true
+                    });
+                    assert(errors && errors.some(e => e.toLowerCase().includes('birth date')), 'Expected a birth-date error');
+                    assert(errors && errors.some(e => e.toLowerCase().includes('parent/guardian name')), 'Expected a parent name error');
+                    assert(errors && errors.some(e => e.toLowerCase().includes('parent/guardian') && e.toLowerCase().includes('signature')),
+                        'Expected a parent/guardian signature error');
+                    assert(errors && errors.some(e => e.toLowerCase().includes('learner signature')), 'Expected a learner signature error');
+                    // Alumni-only fields (email/phone) must NOT be required on the student path.
+                    assert(!errors.some(e => e.toLowerCase().includes('valid email address is required')),
+                        'Student path should not require the alumni email field');
+                } finally {
+                    delete tripsCache.trip1;
+                }
+            }
+        );
+
+        await test(
+            'Trip — student-audience trip passes once birth date, parent fields, and both signatures are provided',
+            'live execution',
+            async () => {
+                const { validateTripForm } = await import('../tripScripts/form.js');
+                const { tripsCache } = await import('../tripScripts/trips.js');
+                const { parentSignaturePad, learnerSignaturePad } = await import('../tripScripts/signature.js');
+                tripsCache.trip1 = { audienceType: 'student' };
+                const originalParentIsEmpty = parentSignaturePad.isEmpty;
+                const originalLearnerIsEmpty = learnerSignaturePad.isEmpty;
+                parentSignaturePad.isEmpty = () => false;
+                learnerSignaturePad.isEmpty = () => false;
+                try {
+                    const errors = validateTripForm({
+                        tripId: 'trip1', participantName: 'Jane Doe', birthDate: '2010-01-01',
+                        parentGuardianName: 'John Doe', parentGuardianAddress: '1 Main Rd',
+                        parentGuardianHomePhone: '0821234567', parentGuardianEmail: 'john@example.com',
+                        emergencyContactName: 'Aunt Sue', emergencyContactPhone: '0821234567', emergencyContactRelationship: 'Aunt',
+                        agreedToTerms: true, popiaConsent: true
+                    });
+                    assert(errors === null, `Expected no validation errors, got: ${JSON.stringify(errors)}`);
+                } finally {
+                    delete tripsCache.trip1;
+                    parentSignaturePad.isEmpty = originalParentIsEmpty;
+                    learnerSignaturePad.isEmpty = originalLearnerIsEmpty;
+                }
+            }
+        );
+
+        await test(
+            'Trip — loadActiveTrips() populates the trip <select> and tripsCache from Firestore docs',
+            'live execution',
+            async () => {
+                const { loadActiveTrips, tripsCache } = await import('../tripScripts/trips.js');
 
                 const originalGetDocs = window.firebaseGetDocs;
                 window.firebaseGetDocs = async () => ({
                     empty: false,
                     forEach: (cb) => {
-                        cb({ id: 'trip1', data: () => ({ name: 'Cape Town Expo', tripDate: '2026-09-01' }) });
-                        cb({ id: 'trip2', data: () => ({ name: 'Joburg Career Day', tripDate: '2026-10-15' }) });
+                        cb({ id: 'trip1', data: () => ({ name: 'Cape Town Expo', tripDate: '2026-09-01', audienceType: 'alumni' }) });
+                        cb({ id: 'trip2', data: () => ({ name: 'Joburg Career Day', tripDate: '2026-10-15', audienceType: 'student' }) });
                     }
                 });
                 try {
@@ -680,6 +781,8 @@
                     const select = document.getElementById('tripSelect');
                     const optionValues = Array.from(select.options).map(o => o.value);
                     assert(optionValues.includes('trip1') && optionValues.includes('trip2'), 'Expected both mocked trips as options');
+                    assert(tripsCache.trip2 && tripsCache.trip2.audienceType === 'student',
+                        'Expected the full trip doc (including audienceType) to be cached, not just the dropdown label');
                 } finally {
                     window.firebaseGetDocs = originalGetDocs;
                 }
@@ -713,25 +816,47 @@
         );
 
         await test(
-            'Trip — client and Cloud Function waiver/POPIA copy stay in sync',
+            'Trip — client and Cloud Function POPIA copy stay in sync',
             'source verification',
             async () => {
                 const clientSrc = await fetch('../tripScripts/constants.js').then(r => r.text());
                 const fnSrc = await fetch('../functions/index.js').then(r => r.text());
-                // Spot-check distinctive phrases rather than a full byte-for-byte
+                // Spot-check a distinctive phrase rather than a full byte-for-byte
                 // compare -- these two files are kept in sync by hand (no shared
                 // module between functions/ and the browser), so this guards
                 // against one copy drifting without the other being updated.
-                // Phrases must sit inside a single string-literal segment in
-                // both files (the text is built from several "..." + "..."
-                // pieces) -- a phrase spanning a concatenation join wouldn't
-                // appear contiguously in the raw source this test fetches.
-                const waiverPhrase = 'gross negligence or wilful misconduct';
+                // POPIA consent is the one section that's still a fixed, global
+                // constant in both files (the other 7 policy sections are now
+                // per-trip and admin-editable, so there's no single global copy
+                // of those left to compare).
                 const popiaPhrase = 'personal information (including medical information)';
-                assert(clientSrc.includes(waiverPhrase), `Client waiver text missing distinctive phrase: "${waiverPhrase}"`);
-                assert(fnSrc.includes(waiverPhrase), `Cloud Function waiver text missing distinctive phrase: "${waiverPhrase}"`);
                 assert(clientSrc.includes(popiaPhrase), `Client POPIA text missing distinctive phrase: "${popiaPhrase}"`);
                 assert(fnSrc.includes(popiaPhrase), `Cloud Function POPIA text missing distinctive phrase: "${popiaPhrase}"`);
+            }
+        );
+
+        await test(
+            'Trip — admin.js and Cloud Function default policy text stay in sync',
+            'source verification',
+            async () => {
+                const adminSrc = await fetch('../scripts/admin.js').then(r => r.text());
+                const fnSrc = await fetch('../functions/index.js').then(r => r.text());
+                // Same rationale as the POPIA sync test above, but for the 7
+                // DEFAULT_* fallback/prefill constants -- spot-check one
+                // distinctive phrase per section so a one-sided edit is caught.
+                const phrases = [
+                    'hubbly (hookah)',
+                    'restart from R0',
+                    'gross negligence or',
+                    'obtain necessary medical treatment',
+                    'cannot guarantee that accidents',
+                    "failure to follow instructions",
+                    'cell phones, money, or clothing'
+                ];
+                for (const phrase of phrases) {
+                    assert(adminSrc.includes(phrase), `admin.js default policy text missing distinctive phrase: "${phrase}"`);
+                    assert(fnSrc.includes(phrase), `functions/index.js default policy text missing distinctive phrase: "${phrase}"`);
+                }
             }
         );
 

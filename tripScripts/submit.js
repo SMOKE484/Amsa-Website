@@ -1,7 +1,7 @@
 import { elements } from './constants.js';
 import { showToast, retryOperation } from '../applicationScripts/utilities.js';
-import { collectTripFormData, validateTripForm } from './form.js';
-import { signaturePad, clearTripSignature } from './signature.js';
+import { collectTripFormData, validateTripForm, getSelectedAudienceType } from './form.js';
+import { signaturePad, parentSignaturePad, learnerSignaturePad } from './signature.js';
 import { recordSubmission } from './submissionHistory.js';
 
 let isSubmitting = false;
@@ -21,16 +21,21 @@ export async function handleTripSubmit(event) {
         return;
     }
 
+    const isStudent = getSelectedAudienceType() === 'student';
+
     isSubmitting = true;
     elements.submitBtn.disabled = true;
     const originalLabel = elements.submitBtn.innerHTML;
     elements.submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
 
     try {
-        const payload = {
-            ...data,
-            signatureDataUrl: signaturePad.toDataURL('image/png')
-        };
+        const payload = { ...data };
+        if (isStudent) {
+            payload.parentSignatureDataUrl = parentSignaturePad.toDataURL();
+            payload.learnerSignatureDataUrl = learnerSignaturePad.toDataURL();
+        } else {
+            payload.signatureDataUrl = signaturePad.toDataURL();
+        }
 
         const submitTripForm = window.firebaseCallable(window.firebaseFunctions, 'submitTripForm');
         const result = await retryOperation(() => submitTripForm(payload), 3, 1000);
@@ -49,7 +54,9 @@ export async function handleTripSubmit(event) {
 
         showSuccessState(response, tripLabel);
         elements.form.reset();
-        clearTripSignature();
+        signaturePad.clear();
+        parentSignaturePad.clear();
+        learnerSignaturePad.clear();
 
     } catch (error) {
         console.error('Error submitting trip form:', error);

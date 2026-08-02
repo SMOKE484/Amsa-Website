@@ -498,6 +498,7 @@
                                     <tr>
                                         <th>Trip Name</th>
                                         <th>Date</th>
+                                        <th>Audience</th>
                                         <th>Active</th>
                                         <th>Actions</th>
                                     </tr>
@@ -516,6 +517,7 @@
                                     <tr>
                                         <th>Name</th>
                                         <th>Trip</th>
+                                        <th>Type</th>
                                         <th>Contact</th>
                                         <th>Emergency Contact</th>
                                         <th>Date Signed</th>
@@ -658,7 +660,7 @@
     </div>
 
     <div id="tripModal" class="modal" style="display: none;">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 720px;">
             <div class="modal-header">
                 <h3 id="tripModalTitle">Add Trip</h3>
                 <span class="close" id="closeTripModal">&times;</span>
@@ -670,13 +672,82 @@
                         <input type="text" id="tripName" class="form-control" required>
                     </div>
                     <div class="form-group">
-                        <label>Description</label>
-                        <textarea id="tripDescription" class="form-control" rows="3"></textarea>
+                        <label>Audience</label>
+                        <select id="tripAudienceType" class="form-control">
+                            <option value="student">Active Student (Parent/Guardian consent required)</option>
+                            <option value="alumni">Alumni (self consent)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Description (internal notes, not shown to students)</label>
+                        <textarea id="tripDescription" class="form-control" rows="2"></textarea>
                     </div>
                     <div class="form-group">
                         <label>Trip Date</label>
                         <input type="date" id="tripDate" class="form-control" required>
                     </div>
+
+                    <div class="form-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div class="form-group">
+                            <label>Location</label>
+                            <input type="text" id="tripLocation" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Type of Event</label>
+                            <input type="text" id="tripEventType" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Organizer Name</label>
+                            <input type="text" id="tripOrganizerName" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Individual(s) in Charge</label>
+                            <input type="text" id="tripIndividualsInCharge" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Departure Date &amp; Time</label>
+                            <input type="datetime-local" id="tripDepartureAt" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Return Date &amp; Time</label>
+                            <input type="datetime-local" id="tripReturnAt" class="form-control" required>
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label>Mode of Transportation</label>
+                            <input type="text" id="tripTransportMode" class="form-control" required>
+                        </div>
+                    </div>
+
+                    <h4 style="margin-top: 20px;">Policy Text (shown to students on this trip's form — edit as needed)</h4>
+                    <div class="form-group">
+                        <label>Terms &amp; Conditions</label>
+                        <textarea id="tripTermsConditionsText" class="form-control" rows="4"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Payments &amp; Refunds</label>
+                        <textarea id="tripPaymentsRefundsText" class="form-control" rows="4"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Indemnity &amp; Limitation of Liability</label>
+                        <textarea id="tripIndemnityText" class="form-control" rows="4"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Medical Emergency Consent</label>
+                        <textarea id="tripMedicalEmergencyConsentText" class="form-control" rows="4"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Transport &amp; Supervision</label>
+                        <textarea id="tripTransportSupervisionText" class="form-control" rows="4"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Learner Conduct &amp; Compliance</label>
+                        <textarea id="tripLearnerConductText" class="form-control" rows="4"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Personal Property</label>
+                        <textarea id="tripPersonalPropertyText" class="form-control" rows="4"></textarea>
+                    </div>
+
                     <div class="form-group">
                         <label>
                             <input type="checkbox" id="tripActive" checked>

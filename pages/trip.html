@@ -37,7 +37,7 @@
 <section class="application-section" id="tripFormSection">
     <div class="container">
         <div class="form-container">
-            <h2 class="form-title">Trip Sign-Up</h2>
+            <h2 class="form-title" id="tripFormTitle">Trip Sign-Up</h2>
             <form id="tripForm" novalidate>
                 <div class="form-grid">
                     <div class="form-group form-full">
@@ -47,17 +47,66 @@
                         </select>
                     </div>
 
+                    <div class="form-group form-full" id="tripInfoSection" style="display:none;">
+                        <label>Trip Details</label>
+                        <p class="rules-content">
+                            <span id="tripInfoLocation"></span><br>
+                            <span id="tripInfoEventType"></span><br>
+                            <span id="tripInfoOrganizer"></span><br>
+                            <span id="tripInfoIndividualsInCharge"></span><br>
+                            <span id="tripInfoDeparture"></span><br>
+                            <span id="tripInfoReturn"></span><br>
+                            <span id="tripInfoTransportMode"></span>
+                        </p>
+                    </div>
+
                     <div class="form-group">
-                        <label for="fullName">Full Name *</label>
-                        <input type="text" id="fullName" class="form-control" required>
+                        <label for="participantName">Participant Name *</label>
+                        <input type="text" id="participantName" class="form-control" required>
                     </div>
                     <div class="form-group">
-                        <label for="email">Email Address *</label>
-                        <input type="email" id="email" class="form-control" required>
+                        <label for="birthDate">Birth Date <span id="birthDateRequiredMarker">*</span></label>
+                        <input type="date" id="birthDate" class="form-control">
                     </div>
-                    <div class="form-group">
-                        <label for="phone">Phone Number *</label>
-                        <input type="tel" id="phone" class="form-control" placeholder="e.g. 0821234567" required>
+
+                    <div class="form-group form-full" id="yourContactSection" style="display:none;">
+                        <label>Your Details *</label>
+                        <div class="emergency-contact-form">
+                            <div class="form-group">
+                                <label for="email">Email Address *</label>
+                                <input type="email" id="email" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="phone">Phone Number *</label>
+                                <input type="tel" id="phone" class="form-control" placeholder="e.g. 0821234567">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group form-full" id="parentGuardianSection" style="display:none;">
+                        <label>Parent/Guardian Details *</label>
+                        <div class="emergency-contact-form">
+                            <div class="form-group">
+                                <label for="parentGuardianName">Full Name *</label>
+                                <input type="text" id="parentGuardianName" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="parentGuardianAddress">Home Address *</label>
+                                <input type="text" id="parentGuardianAddress" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="parentGuardianHomePhone">Home Phone *</label>
+                                <input type="tel" id="parentGuardianHomePhone" class="form-control" placeholder="e.g. 0821234567">
+                            </div>
+                            <div class="form-group">
+                                <label for="parentGuardianWorkPhone">Work Phone</label>
+                                <input type="tel" id="parentGuardianWorkPhone" class="form-control" placeholder="e.g. 0821234567">
+                            </div>
+                            <div class="form-group">
+                                <label for="parentGuardianEmail">Email Address *</label>
+                                <input type="email" id="parentGuardianEmail" class="form-control">
+                            </div>
+                        </div>
                     </div>
 
                     <div class="form-group form-full">
@@ -97,11 +146,13 @@
                     </div>
 
                     <div class="form-group form-full">
-                        <label>Indemnity &amp; Consent Waiver *</label>
-                        <p id="waiverTextContainer" class="rules-content"></p>
+                        <label>Terms &amp; Conditions *</label>
+                        <div id="policySectionsContainer" class="rules-content">
+                            <p>Select a trip above to view its terms and conditions.</p>
+                        </div>
                         <div class="consent-checkbox">
-                            <input type="checkbox" id="waiverAgreed" required>
-                            <label for="waiverAgreed">I confirm that I have read and agree to the waiver above *</label>
+                            <input type="checkbox" id="agreedToTerms" required>
+                            <label for="agreedToTerms">I confirm that I have read and agree to all of the above *</label>
                         </div>
                     </div>
 
@@ -114,12 +165,27 @@
                         </div>
                     </div>
 
-                    <div class="form-group form-full">
+                    <div class="form-group form-full" id="alumniSignatureSection" style="display:none;">
                         <div class="signature-field">
-                            <label for="tripSignaturePad">Signature *</label>
-                            <canvas id="tripSignaturePad" width="500" height="150"></canvas>
-                            <button type="button" id="clearTripSignature" class="btn btn-secondary">Clear Signature</button>
-                            <input type="hidden" id="tripSignature" required>
+                            <label for="signaturePadCanvas">Signature *</label>
+                            <canvas id="signaturePadCanvas" width="500" height="150"></canvas>
+                            <button type="button" id="clearSignatureBtn" class="btn btn-secondary">Clear Signature</button>
+                            <input type="hidden" id="signatureInput">
+                        </div>
+                    </div>
+
+                    <div class="form-group form-full" id="studentSignatureSection" style="display:none;">
+                        <div class="signature-field">
+                            <label for="parentSignaturePadCanvas">Parent/Guardian Signature *</label>
+                            <canvas id="parentSignaturePadCanvas" width="500" height="150"></canvas>
+                            <button type="button" id="clearParentSignatureBtn" class="btn btn-secondary">Clear Signature</button>
+                            <input type="hidden" id="parentSignatureInput">
+                        </div>
+                        <div class="signature-field">
+                            <label for="learnerSignaturePadCanvas">Learner Signature *</label>
+                            <canvas id="learnerSignaturePadCanvas" width="500" height="150"></canvas>
+                            <button type="button" id="clearLearnerSignatureBtn" class="btn btn-secondary">Clear Signature</button>
+                            <input type="hidden" id="learnerSignatureInput">
                         </div>
                     </div>
 

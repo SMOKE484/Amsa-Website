@@ -485,6 +485,15 @@ document.addEventListener('DOMContentLoaded', () => {
             renderPayments();
         } else if (sectionId === 'analytics') {
             initializeAnalyticsCharts();
+        } else if (sectionId === 'trips') {
+            // TEMP DIAGNOSTIC (see BUGS_TO_FIX.md "trips not appearing" investigation) — remove once resolved.
+            // Was previously missing entirely (unlike applications/payments/analytics above) --
+            // re-render defensively on every visit to this section instead of relying solely
+            // on the onSnapshot listener having already populated the tables beforehand.
+            console.log('[trip-debug] showSection(trips) re-rendering. tripsTableBody in DOM:',
+                document.body.contains(tripsTableBody), 'tripSubmissionsTableBody in DOM:', document.body.contains(tripSubmissionsTableBody));
+            renderTrips();
+            renderTripSubmissions();
         }
     }
 
@@ -2171,6 +2180,47 @@ document.addEventListener('DOMContentLoaded', () => {
     // ---------------------------------------------------------------------
     // Trips
     // ---------------------------------------------------------------------
+    // Starting-point wording for each trip's 7 policy sections, transcribed
+    // from AMSA's real paper consent form template. Pre-filled into the Add
+    // Trip modal so the admin isn't typing from scratch every time; editable
+    // per trip from there. Kept in sync by hand with the identically-named
+    // DEFAULT_* constants in functions/index.js (used there only as a
+    // fallback for legacy trip docs that predate these fields).
+    const DEFAULT_TERMS_TEXT = "No alcohol or hubbly (hookah) is allowed.\n" +
+        "No participant should walk alone.\n" +
+        "If a participant chooses to go somewhere, they must tell a staff member or fellow participant where they are going.\n" +
+        "Participants must keep their phone on at all times during the trip.\n" +
+        "When it is time to leave a venue, staff will look for a missing participant for a maximum of 30 minutes. " +
+        "If the participant cannot be found within that time, they will need to make their own way back.\n" +
+        "Voluntary Participation & Risk Acknowledgment: I understand that attendance on this trip is voluntary. I accept " +
+        "that participation in any excursion involves inherent risks, including but not limited to travel accidents, " +
+        "injury, illness, or loss of property, and I voluntarily accept these risks on behalf of the participant named " +
+        "on this form.";
+    const DEFAULT_PAYMENTS_REFUNDS_TEXT = "No refunds will be issued to a participant who decides not to attend the " +
+        "trip, regardless of the circumstances. All payments made are non-refundable. If a specific date was agreed for " +
+        "a deposit or instalment and the participant fails to honour that date, the amount already paid will be " +
+        "retained as a deposit. Should the participant choose to continue paying after the due date has passed, any " +
+        "further payment will restart from R0 (for example, if the agreed deposit was R1000 and R500 had been paid by " +
+        "the due date, a late continuation restarts the payment count at R0). The only instance in which a refund will " +
+        "be provided is if the trip itself is cancelled by AMSA; otherwise, no refunds will be given.";
+    const DEFAULT_INDEMNITY_TEXT = "I hereby indemnify and hold harmless AMSA Academy, its staff, management, and " +
+        "representatives from any claims, damages, or legal action arising from injury, death, loss, or damage " +
+        "suffered by the participant during this trip, except where such loss is caused by the gross negligence or " +
+        "wilful misconduct of AMSA Academy.";
+    const DEFAULT_MEDICAL_EMERGENCY_CONSENT_TEXT = "In the event of illness or injury, I authorise AMSA Academy staff " +
+        "to obtain necessary medical treatment for the participant. I accept full responsibility for all medical costs " +
+        "incurred, and I will disclose any medical conditions, allergies, or medication requirements to AMSA in writing " +
+        "before the trip departs.";
+    const DEFAULT_TRANSPORT_SUPERVISION_TEXT = "I understand that transport will be provided by AMSA or its appointed " +
+        "service providers. While AMSA will take reasonable precautions for participant safety and supervision, I " +
+        "accept that AMSA cannot guarantee that accidents or incidents will not occur during travel or at the venue.";
+    const DEFAULT_LEARNER_CONDUCT_TEXT = "The participant will abide by all instructions given by AMSA staff and venue " +
+        "officials. I understand that if the participant engages in misconduct, unsafe behaviour, or illegal activity, " +
+        "AMSA reserves the right to send the participant home at my expense, and AMSA is not liable for incidents " +
+        "resulting from a participant's failure to follow instructions.";
+    const DEFAULT_PERSONAL_PROPERTY_TEXT = "AMSA Academy will not be held responsible for any loss, theft, or damage to " +
+        "personal belongings, including cell phones, money, or clothing, during this trip.";
+
     const tripsTableBody = document.getElementById('tripsTableBody');
     const tripSubmissionsTableBody = document.getElementById('tripSubmissionsTableBody');
     const tripFilter = document.getElementById('tripFilter');
@@ -2181,36 +2231,84 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelTripBtn = document.getElementById('cancelTripBtn');
     const saveTripBtn = document.getElementById('saveTripBtn');
     const tripNameInput = document.getElementById('tripName');
+    const tripAudienceTypeInput = document.getElementById('tripAudienceType');
     const tripDescriptionInput = document.getElementById('tripDescription');
     const tripDateInput = document.getElementById('tripDate');
+    const tripLocationInput = document.getElementById('tripLocation');
+    const tripEventTypeInput = document.getElementById('tripEventType');
+    const tripOrganizerNameInput = document.getElementById('tripOrganizerName');
+    const tripIndividualsInChargeInput = document.getElementById('tripIndividualsInCharge');
+    const tripDepartureAtInput = document.getElementById('tripDepartureAt');
+    const tripReturnAtInput = document.getElementById('tripReturnAt');
+    const tripTransportModeInput = document.getElementById('tripTransportMode');
+    const tripTermsConditionsTextInput = document.getElementById('tripTermsConditionsText');
+    const tripPaymentsRefundsTextInput = document.getElementById('tripPaymentsRefundsText');
+    const tripIndemnityTextInput = document.getElementById('tripIndemnityText');
+    const tripMedicalEmergencyConsentTextInput = document.getElementById('tripMedicalEmergencyConsentText');
+    const tripTransportSupervisionTextInput = document.getElementById('tripTransportSupervisionText');
+    const tripLearnerConductTextInput = document.getElementById('tripLearnerConductText');
+    const tripPersonalPropertyTextInput = document.getElementById('tripPersonalPropertyText');
     const tripActiveInput = document.getElementById('tripActive');
 
     let trips = [];
     let tripSubmissions = [];
     let editingTripId = null;
 
-    if (addTripBtn) addTripBtn.addEventListener('click', () => openTripModal(null));
-    if (closeTripModalBtn) closeTripModalBtn.addEventListener('click', closeTripModal);
-    if (cancelTripBtn) cancelTripBtn.addEventListener('click', closeTripModal);
+    // TEMP DIAGNOSTIC (see BUGS_TO_FIX.md "trips not appearing" investigation) — remove once resolved.
+    if (addTripBtn) addTripBtn.addEventListener('click', () => { console.log('[trip-debug] addTripBtn clicked'); openTripModal(null); });
+    if (closeTripModalBtn) closeTripModalBtn.addEventListener('click', () => { console.log('[trip-debug] closeTripModalBtn clicked'); closeTripModal(); });
+    if (cancelTripBtn) cancelTripBtn.addEventListener('click', () => { console.log('[trip-debug] cancelTripBtn clicked'); closeTripModal(); });
     if (tripModal) {
         tripModal.addEventListener('click', (e) => {
-            if (e.target === tripModal) closeTripModal();
+            if (e.target === tripModal) { console.log('[trip-debug] tripModal backdrop clicked'); closeTripModal(); }
         });
     }
-    if (saveTripBtn) saveTripBtn.addEventListener('click', saveTrip);
-    if (tripFilter) tripFilter.addEventListener('change', renderTripSubmissions);
+    if (saveTripBtn) saveTripBtn.addEventListener('click', () => { console.log('[trip-debug] saveTripBtn clicked, editingTripId:', editingTripId); saveTrip(); });
+    if (tripFilter) {
+        tripFilter.addEventListener('change', () => {
+            console.log('[trip-debug] tripFilter changed to:', tripFilter.value,
+                '(matches a known trip:', trips.some(t => t.id === tripFilter.value), ')');
+            renderTripSubmissions();
+        });
+    }
 
     function openTripModal(trip) {
+        console.log('[trip-debug] openTripModal called with trip:', trip ? trip.id : '(new)');
         editingTripId = trip ? trip.id : null;
         tripModalTitle.textContent = trip ? 'Edit Trip' : 'Add Trip';
         tripNameInput.value = trip ? (trip.name || '') : '';
+        // Legacy trip docs (created before audienceType existed) behave as
+        // "alumni" today (see functions/index.js submitTripForm) -- default
+        // the control to match so editing one doesn't silently change its
+        // live behavior until the admin explicitly picks a value.
+        tripAudienceTypeInput.value = trip ? (trip.audienceType === 'student' ? 'student' : 'alumni') : 'student';
         tripDescriptionInput.value = trip ? (trip.description || '') : '';
         tripDateInput.value = trip ? (trip.tripDate || '') : '';
+        tripLocationInput.value = trip ? (trip.location || '') : '';
+        tripEventTypeInput.value = trip ? (trip.eventType || '') : '';
+        tripOrganizerNameInput.value = trip ? (trip.organizerName || '') : '';
+        tripIndividualsInChargeInput.value = trip ? (trip.individualsInCharge || '') : '';
+        tripDepartureAtInput.value = trip ? (trip.departureAt || '') : '';
+        tripReturnAtInput.value = trip ? (trip.returnAt || '') : '';
+        tripTransportModeInput.value = trip ? (trip.transportMode || '') : '';
+        tripTermsConditionsTextInput.value = trip ? (trip.termsConditionsText || DEFAULT_TERMS_TEXT) : DEFAULT_TERMS_TEXT;
+        tripPaymentsRefundsTextInput.value = trip ?
+            (trip.paymentsRefundsText || DEFAULT_PAYMENTS_REFUNDS_TEXT) : DEFAULT_PAYMENTS_REFUNDS_TEXT;
+        tripIndemnityTextInput.value = trip ? (trip.indemnityText || DEFAULT_INDEMNITY_TEXT) : DEFAULT_INDEMNITY_TEXT;
+        tripMedicalEmergencyConsentTextInput.value = trip ?
+            (trip.medicalEmergencyConsentText || DEFAULT_MEDICAL_EMERGENCY_CONSENT_TEXT) : DEFAULT_MEDICAL_EMERGENCY_CONSENT_TEXT;
+        tripTransportSupervisionTextInput.value = trip ?
+            (trip.transportSupervisionText || DEFAULT_TRANSPORT_SUPERVISION_TEXT) : DEFAULT_TRANSPORT_SUPERVISION_TEXT;
+        tripLearnerConductTextInput.value = trip ?
+            (trip.learnerConductText || DEFAULT_LEARNER_CONDUCT_TEXT) : DEFAULT_LEARNER_CONDUCT_TEXT;
+        tripPersonalPropertyTextInput.value = trip ?
+            (trip.personalPropertyText || DEFAULT_PERSONAL_PROPERTY_TEXT) : DEFAULT_PERSONAL_PROPERTY_TEXT;
         tripActiveInput.checked = trip ? trip.active !== false : true;
         tripModal.style.display = 'flex';
     }
 
     function closeTripModal() {
+        console.log('[trip-debug] closeTripModal called');
         tripModal.style.display = 'none';
         editingTripId = null;
     }
@@ -2218,16 +2316,38 @@ document.addEventListener('DOMContentLoaded', () => {
     async function saveTrip() {
         const name = tripNameInput.value.trim();
         const tripDateValue = tripDateInput.value;
-        if (!name || !tripDateValue) {
-            showToast('Trip name and date are required', 'error');
+        const location = tripLocationInput.value.trim();
+        const eventType = tripEventTypeInput.value.trim();
+        const organizerName = tripOrganizerNameInput.value.trim();
+        const individualsInCharge = tripIndividualsInChargeInput.value.trim();
+        const departureAt = tripDepartureAtInput.value;
+        const returnAt = tripReturnAtInput.value;
+        const transportMode = tripTransportModeInput.value.trim();
+        if (!name || !tripDateValue || !location || !eventType || !organizerName ||
+            !individualsInCharge || !departureAt || !returnAt || !transportMode) {
+            console.log('[trip-debug] saveTrip validation failed:', {
+                name: !!name, tripDateValue: !!tripDateValue, location: !!location, eventType: !!eventType,
+                organizerName: !!organizerName, individualsInCharge: !!individualsInCharge,
+                departureAt: !!departureAt, returnAt: !!returnAt, transportMode: !!transportMode
+            });
+            showToast('Trip name, date, and all logistics fields are required', 'error');
             return;
         }
 
         const { collection, addDoc, doc, updateDoc, serverTimestamp } = window.firebase;
         const tripData = {
             name,
+            audienceType: tripAudienceTypeInput.value === 'student' ? 'student' : 'alumni',
             description: tripDescriptionInput.value.trim(),
             tripDate: tripDateValue,
+            location, eventType, organizerName, individualsInCharge, departureAt, returnAt, transportMode,
+            termsConditionsText: tripTermsConditionsTextInput.value.trim() || DEFAULT_TERMS_TEXT,
+            paymentsRefundsText: tripPaymentsRefundsTextInput.value.trim() || DEFAULT_PAYMENTS_REFUNDS_TEXT,
+            indemnityText: tripIndemnityTextInput.value.trim() || DEFAULT_INDEMNITY_TEXT,
+            medicalEmergencyConsentText: tripMedicalEmergencyConsentTextInput.value.trim() || DEFAULT_MEDICAL_EMERGENCY_CONSENT_TEXT,
+            transportSupervisionText: tripTransportSupervisionTextInput.value.trim() || DEFAULT_TRANSPORT_SUPERVISION_TEXT,
+            learnerConductText: tripLearnerConductTextInput.value.trim() || DEFAULT_LEARNER_CONDUCT_TEXT,
+            personalPropertyText: tripPersonalPropertyTextInput.value.trim() || DEFAULT_PERSONAL_PROPERTY_TEXT,
             active: tripActiveInput.checked,
             updatedAt: serverTimestamp()
         };
@@ -2235,17 +2355,21 @@ document.addEventListener('DOMContentLoaded', () => {
         saveTripBtn.disabled = true;
         try {
             if (editingTripId) {
+                console.log('[trip-debug] updateDoc for existing trip:', editingTripId, tripData);
                 await updateDoc(doc(window.firebase.db, 'trips', editingTripId), tripData);
+                console.log('[trip-debug] updateDoc resolved successfully for', editingTripId);
                 showToast('Trip updated', 'success');
             } else {
                 tripData.createdAt = serverTimestamp();
                 tripData.createdBy = window.firebase.auth.currentUser ? window.firebase.auth.currentUser.uid : null;
-                await addDoc(collection(window.firebase.db, 'trips'), tripData);
+                console.log('[trip-debug] addDoc for new trip:', tripData);
+                const newDocRef = await addDoc(collection(window.firebase.db, 'trips'), tripData);
+                console.log('[trip-debug] addDoc resolved successfully, new trip id:', newDocRef.id);
                 showToast('Trip added', 'success');
             }
             closeTripModal();
         } catch (error) {
-            console.error('Error saving trip:', error);
+            console.error('[trip-debug] Error saving trip:', error);
             showToast('Failed to save trip: ' + error.message, 'error');
         } finally {
             saveTripBtn.disabled = false;
@@ -2253,6 +2377,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderTrips() {
+        // TEMP DIAGNOSTIC (see BUGS_TO_FIX.md "trips not appearing" investigation) — remove once resolved.
+        console.log('[trip-debug] renderTrips() called. tripsTableBody found:', !!tripsTableBody,
+            'trips.length:', trips.length, 'trip names:', trips.map(t => t.name));
         if (!tripsTableBody) return;
         tripsTableBody.innerHTML = '';
 
@@ -2271,7 +2398,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (trips.length === 0) {
             const tr = document.createElement('tr');
             const td = document.createElement('td');
-            td.colSpan = 4;
+            td.colSpan = 5;
             td.className = 'no-data';
             td.textContent = 'No trips created yet.';
             tr.appendChild(td);
@@ -2289,6 +2416,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const tdDate = document.createElement('td');
             tdDate.textContent = trip.tripDate || 'N/A';
             row.appendChild(tdDate);
+
+            const tdAudience = document.createElement('td');
+            const audienceSpan = document.createElement('span');
+            const isStudentTrip = trip.audienceType === 'student';
+            audienceSpan.className = `status-badge ${isStudentTrip ? 'status-under-review' : 'status-approved'}`;
+            audienceSpan.textContent = isStudentTrip ? 'Student' : 'Alumni';
+            tdAudience.appendChild(audienceSpan);
+            row.appendChild(tdAudience);
 
             const tdActive = document.createElement('td');
             const span = document.createElement('span');
@@ -2310,28 +2445,44 @@ document.addEventListener('DOMContentLoaded', () => {
 
             tripsTableBody.appendChild(row);
         });
+        console.log('[trip-debug] renderTrips finished. tripsTableBody.children.length:', tripsTableBody.children.length,
+            'in DOM:', document.body.contains(tripsTableBody));
 
         // Full rebuild above means old buttons (and their listeners) were just
         // discarded with the tbody, so re-attaching here can't stack duplicates.
         tripsTableBody.querySelectorAll('.edit-trip-btn').forEach(btn => {
             btn.addEventListener('click', () => {
+                console.log('[trip-debug] edit-trip-btn clicked for id:', btn.dataset.id);
                 const trip = trips.find(t => t.id === btn.dataset.id);
                 if (trip) openTripModal(trip);
+                else console.warn('[trip-debug] edit-trip-btn: no matching trip found in local `trips` array for id', btn.dataset.id);
             });
         });
     }
 
     function renderTripSubmissions() {
+        // TEMP DIAGNOSTIC (see BUGS_TO_FIX.md "trips not appearing" investigation) — remove once resolved.
+        // Full dump of every raw submission doc (before filtering) so we can see
+        // exactly which trip each of the 19 existing sign-ups belongs to, and
+        // whether the 2 new test trips have any submissions among them at all.
+        console.log('[trip-debug] renderTripSubmissions() called. tripSubmissionsTableBody found:', !!tripSubmissionsTableBody,
+            'raw tripSubmissions.length:', tripSubmissions.length);
+        console.table(tripSubmissions.map(s => ({
+            id: s.id, tripId: s.tripId, tripName: s.tripName,
+            name: s.participantName || s.fullName, audienceType: s.audienceType
+        })));
+
         if (!tripSubmissionsTableBody) return;
         tripSubmissionsTableBody.innerHTML = '';
 
         const filterValue = tripFilter ? tripFilter.value : 'all';
         const filtered = filterValue === 'all' ? tripSubmissions : tripSubmissions.filter(s => s.tripId === filterValue);
+        console.log('[trip-debug] renderTripSubmissions filterValue:', filterValue, 'filtered.length:', filtered.length);
 
         if (filtered.length === 0) {
             const tr = document.createElement('tr');
             const td = document.createElement('td');
-            td.colSpan = 6;
+            td.colSpan = 7;
             td.className = 'no-data';
             td.textContent = 'No trip sign-ups yet.';
             tr.appendChild(td);
@@ -2339,19 +2490,28 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        let rowsBuilt = 0;
         filtered.forEach(sub => {
+          try {
             const row = document.createElement('tr');
+            const isStudentSub = sub.audienceType === 'student';
 
             const tdName = document.createElement('td');
-            tdName.textContent = sub.fullName || '';
+            tdName.textContent = sub.participantName || sub.fullName || '';
             row.appendChild(tdName);
 
             const tdTrip = document.createElement('td');
             tdTrip.textContent = sub.tripName || '';
             row.appendChild(tdTrip);
 
+            const tdType = document.createElement('td');
+            tdType.textContent = isStudentSub ? 'Student' : 'Alumni';
+            row.appendChild(tdType);
+
             const tdContact = document.createElement('td');
-            tdContact.textContent = `${sub.email || ''} / ${sub.phone || ''}`;
+            tdContact.textContent = isStudentSub ?
+                `${sub.parentGuardianName || ''} — ${sub.parentGuardianEmail || ''} / ${sub.parentGuardianHomePhone || ''}` :
+                `${sub.email || ''} / ${sub.phone || ''}`;
             row.appendChild(tdContact);
 
             const tdEmergency = document.createElement('td');
@@ -2374,10 +2534,20 @@ document.addEventListener('DOMContentLoaded', () => {
             row.appendChild(tdActions);
 
             tripSubmissionsTableBody.appendChild(row);
+            rowsBuilt++;
+          } catch (rowError) {
+            console.error('[trip-debug] renderTripSubmissions: failed to build row for submission', sub.id, rowError);
+          }
         });
+        console.log('[trip-debug] renderTripSubmissions finished. rowsBuilt:', rowsBuilt,
+            'tripSubmissionsTableBody.children.length:', tripSubmissionsTableBody.children.length,
+            'in DOM:', document.body.contains(tripSubmissionsTableBody));
 
         tripSubmissionsTableBody.querySelectorAll('.download-trip-pdf-btn').forEach(btn => {
-            btn.addEventListener('click', () => downloadTripPdf(btn));
+            btn.addEventListener('click', () => {
+                console.log('[trip-debug] download-trip-pdf-btn clicked for submission:', btn.dataset.id);
+                downloadTripPdf(btn);
+            });
         });
     }
 
@@ -2402,21 +2572,29 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupTripListeners() {
+        // TEMP DIAGNOSTIC (see BUGS_TO_FIX.md "trips not appearing" investigation) — remove once resolved.
+        console.log('[trip-debug] setupTripListeners() called. tripsTableBody found:', !!tripsTableBody,
+            'tripSubmissionsTableBody found:', !!tripSubmissionsTableBody,
+            'already attached:', !!(window.tripsListener || window.tripSubmissionsListener));
         if (window.tripsListener || window.tripSubmissionsListener) return;
 
         const { collection, query, orderBy, onSnapshot } = window.firebase;
 
         const tripsQuery = query(collection(window.firebase.db, 'trips'), orderBy('createdAt', 'desc'));
         window.tripsListener = onSnapshot(tripsQuery, (snapshot) => {
+            console.log('[trip-debug] trips snapshot received. doc count:', snapshot.size,
+                'ids:', snapshot.docs.map(d => d.id));
             trips = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
             renderTrips();
             renderTripSubmissions();
         }, (error) => {
-            console.error('Trips listener error:', error);
+            console.error('[trip-debug] Trips listener error:', error);
         });
 
         const submissionsQuery = query(collection(window.firebase.db, 'tripSubmissions'), orderBy('signedAt', 'desc'));
         window.tripSubmissionsListener = onSnapshot(submissionsQuery, (snapshot) => {
+            console.log('[trip-debug] tripSubmissions snapshot received. doc count:', snapshot.size,
+                'ids:', snapshot.docs.map(d => d.id));
             tripSubmissions = snapshot.docs.map(d => ({
                 id: d.id,
                 ...d.data(),
@@ -2424,7 +2602,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }));
             renderTripSubmissions();
         }, (error) => {
-            console.error('Trip submissions listener error:', error);
+            console.error('[trip-debug] Trip submissions listener error:', error);
         });
     }
 });
