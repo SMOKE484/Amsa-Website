@@ -486,12 +486,10 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (sectionId === 'analytics') {
             initializeAnalyticsCharts();
         } else if (sectionId === 'trips') {
-            // TEMP DIAGNOSTIC (see BUGS_TO_FIX.md "trips not appearing" investigation) — remove once resolved.
-            // Was previously missing entirely (unlike applications/payments/analytics above) --
-            // re-render defensively on every visit to this section instead of relying solely
-            // on the onSnapshot listener having already populated the tables beforehand.
-            console.log('[trip-debug] showSection(trips) re-rendering. tripsTableBody in DOM:',
-                document.body.contains(tripsTableBody), 'tripSubmissionsTableBody in DOM:', document.body.contains(tripSubmissionsTableBody));
+            // Was previously missing entirely (unlike applications/payments/analytics
+            // above) -- re-render defensively on every visit to this section instead
+            // of relying solely on the onSnapshot listener having already populated
+            // the tables beforehand.
             renderTrips();
             renderTripSubmissions();
         }
@@ -2254,26 +2252,18 @@ document.addEventListener('DOMContentLoaded', () => {
     let tripSubmissions = [];
     let editingTripId = null;
 
-    // TEMP DIAGNOSTIC (see BUGS_TO_FIX.md "trips not appearing" investigation) — remove once resolved.
-    if (addTripBtn) addTripBtn.addEventListener('click', () => { console.log('[trip-debug] addTripBtn clicked'); openTripModal(null); });
-    if (closeTripModalBtn) closeTripModalBtn.addEventListener('click', () => { console.log('[trip-debug] closeTripModalBtn clicked'); closeTripModal(); });
-    if (cancelTripBtn) cancelTripBtn.addEventListener('click', () => { console.log('[trip-debug] cancelTripBtn clicked'); closeTripModal(); });
+    if (addTripBtn) addTripBtn.addEventListener('click', () => openTripModal(null));
+    if (closeTripModalBtn) closeTripModalBtn.addEventListener('click', closeTripModal);
+    if (cancelTripBtn) cancelTripBtn.addEventListener('click', closeTripModal);
     if (tripModal) {
         tripModal.addEventListener('click', (e) => {
-            if (e.target === tripModal) { console.log('[trip-debug] tripModal backdrop clicked'); closeTripModal(); }
+            if (e.target === tripModal) closeTripModal();
         });
     }
-    if (saveTripBtn) saveTripBtn.addEventListener('click', () => { console.log('[trip-debug] saveTripBtn clicked, editingTripId:', editingTripId); saveTrip(); });
-    if (tripFilter) {
-        tripFilter.addEventListener('change', () => {
-            console.log('[trip-debug] tripFilter changed to:', tripFilter.value,
-                '(matches a known trip:', trips.some(t => t.id === tripFilter.value), ')');
-            renderTripSubmissions();
-        });
-    }
+    if (saveTripBtn) saveTripBtn.addEventListener('click', saveTrip);
+    if (tripFilter) tripFilter.addEventListener('change', renderTripSubmissions);
 
     function openTripModal(trip) {
-        console.log('[trip-debug] openTripModal called with trip:', trip ? trip.id : '(new)');
         editingTripId = trip ? trip.id : null;
         tripModalTitle.textContent = trip ? 'Edit Trip' : 'Add Trip';
         tripNameInput.value = trip ? (trip.name || '') : '';
@@ -2308,7 +2298,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function closeTripModal() {
-        console.log('[trip-debug] closeTripModal called');
         tripModal.style.display = 'none';
         editingTripId = null;
     }
@@ -2325,11 +2314,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const transportMode = tripTransportModeInput.value.trim();
         if (!name || !tripDateValue || !location || !eventType || !organizerName ||
             !individualsInCharge || !departureAt || !returnAt || !transportMode) {
-            console.log('[trip-debug] saveTrip validation failed:', {
-                name: !!name, tripDateValue: !!tripDateValue, location: !!location, eventType: !!eventType,
-                organizerName: !!organizerName, individualsInCharge: !!individualsInCharge,
-                departureAt: !!departureAt, returnAt: !!returnAt, transportMode: !!transportMode
-            });
             showToast('Trip name, date, and all logistics fields are required', 'error');
             return;
         }
@@ -2355,21 +2339,17 @@ document.addEventListener('DOMContentLoaded', () => {
         saveTripBtn.disabled = true;
         try {
             if (editingTripId) {
-                console.log('[trip-debug] updateDoc for existing trip:', editingTripId, tripData);
                 await updateDoc(doc(window.firebase.db, 'trips', editingTripId), tripData);
-                console.log('[trip-debug] updateDoc resolved successfully for', editingTripId);
                 showToast('Trip updated', 'success');
             } else {
                 tripData.createdAt = serverTimestamp();
                 tripData.createdBy = window.firebase.auth.currentUser ? window.firebase.auth.currentUser.uid : null;
-                console.log('[trip-debug] addDoc for new trip:', tripData);
-                const newDocRef = await addDoc(collection(window.firebase.db, 'trips'), tripData);
-                console.log('[trip-debug] addDoc resolved successfully, new trip id:', newDocRef.id);
+                await addDoc(collection(window.firebase.db, 'trips'), tripData);
                 showToast('Trip added', 'success');
             }
             closeTripModal();
         } catch (error) {
-            console.error('[trip-debug] Error saving trip:', error);
+            console.error('Error saving trip:', error);
             showToast('Failed to save trip: ' + error.message, 'error');
         } finally {
             saveTripBtn.disabled = false;
@@ -2377,9 +2357,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderTrips() {
-        // TEMP DIAGNOSTIC (see BUGS_TO_FIX.md "trips not appearing" investigation) — remove once resolved.
-        console.log('[trip-debug] renderTrips() called. tripsTableBody found:', !!tripsTableBody,
-            'trips.length:', trips.length, 'trip names:', trips.map(t => t.name));
         if (!tripsTableBody) return;
         tripsTableBody.innerHTML = '';
 
@@ -2445,39 +2422,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
             tripsTableBody.appendChild(row);
         });
-        console.log('[trip-debug] renderTrips finished. tripsTableBody.children.length:', tripsTableBody.children.length,
-            'in DOM:', document.body.contains(tripsTableBody));
 
         // Full rebuild above means old buttons (and their listeners) were just
         // discarded with the tbody, so re-attaching here can't stack duplicates.
         tripsTableBody.querySelectorAll('.edit-trip-btn').forEach(btn => {
             btn.addEventListener('click', () => {
-                console.log('[trip-debug] edit-trip-btn clicked for id:', btn.dataset.id);
                 const trip = trips.find(t => t.id === btn.dataset.id);
                 if (trip) openTripModal(trip);
-                else console.warn('[trip-debug] edit-trip-btn: no matching trip found in local `trips` array for id', btn.dataset.id);
             });
         });
     }
 
     function renderTripSubmissions() {
-        // TEMP DIAGNOSTIC (see BUGS_TO_FIX.md "trips not appearing" investigation) — remove once resolved.
-        // Full dump of every raw submission doc (before filtering) so we can see
-        // exactly which trip each of the 19 existing sign-ups belongs to, and
-        // whether the 2 new test trips have any submissions among them at all.
-        console.log('[trip-debug] renderTripSubmissions() called. tripSubmissionsTableBody found:', !!tripSubmissionsTableBody,
-            'raw tripSubmissions.length:', tripSubmissions.length);
-        console.table(tripSubmissions.map(s => ({
-            id: s.id, tripId: s.tripId, tripName: s.tripName,
-            name: s.participantName || s.fullName, audienceType: s.audienceType
-        })));
-
         if (!tripSubmissionsTableBody) return;
         tripSubmissionsTableBody.innerHTML = '';
 
         const filterValue = tripFilter ? tripFilter.value : 'all';
         const filtered = filterValue === 'all' ? tripSubmissions : tripSubmissions.filter(s => s.tripId === filterValue);
-        console.log('[trip-debug] renderTripSubmissions filterValue:', filterValue, 'filtered.length:', filtered.length);
 
         if (filtered.length === 0) {
             const tr = document.createElement('tr');
@@ -2490,9 +2451,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        let rowsBuilt = 0;
         filtered.forEach(sub => {
-          try {
             const row = document.createElement('tr');
             const isStudentSub = sub.audienceType === 'student';
 
@@ -2534,20 +2493,10 @@ document.addEventListener('DOMContentLoaded', () => {
             row.appendChild(tdActions);
 
             tripSubmissionsTableBody.appendChild(row);
-            rowsBuilt++;
-          } catch (rowError) {
-            console.error('[trip-debug] renderTripSubmissions: failed to build row for submission', sub.id, rowError);
-          }
         });
-        console.log('[trip-debug] renderTripSubmissions finished. rowsBuilt:', rowsBuilt,
-            'tripSubmissionsTableBody.children.length:', tripSubmissionsTableBody.children.length,
-            'in DOM:', document.body.contains(tripSubmissionsTableBody));
 
         tripSubmissionsTableBody.querySelectorAll('.download-trip-pdf-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                console.log('[trip-debug] download-trip-pdf-btn clicked for submission:', btn.dataset.id);
-                downloadTripPdf(btn);
-            });
+            btn.addEventListener('click', () => downloadTripPdf(btn));
         });
     }
 
@@ -2572,29 +2521,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function setupTripListeners() {
-        // TEMP DIAGNOSTIC (see BUGS_TO_FIX.md "trips not appearing" investigation) — remove once resolved.
-        console.log('[trip-debug] setupTripListeners() called. tripsTableBody found:', !!tripsTableBody,
-            'tripSubmissionsTableBody found:', !!tripSubmissionsTableBody,
-            'already attached:', !!(window.tripsListener || window.tripSubmissionsListener));
         if (window.tripsListener || window.tripSubmissionsListener) return;
 
         const { collection, query, orderBy, onSnapshot } = window.firebase;
 
         const tripsQuery = query(collection(window.firebase.db, 'trips'), orderBy('createdAt', 'desc'));
         window.tripsListener = onSnapshot(tripsQuery, (snapshot) => {
-            console.log('[trip-debug] trips snapshot received. doc count:', snapshot.size,
-                'ids:', snapshot.docs.map(d => d.id));
             trips = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
             renderTrips();
             renderTripSubmissions();
         }, (error) => {
-            console.error('[trip-debug] Trips listener error:', error);
+            console.error('Trips listener error:', error);
         });
 
         const submissionsQuery = query(collection(window.firebase.db, 'tripSubmissions'), orderBy('signedAt', 'desc'));
         window.tripSubmissionsListener = onSnapshot(submissionsQuery, (snapshot) => {
-            console.log('[trip-debug] tripSubmissions snapshot received. doc count:', snapshot.size,
-                'ids:', snapshot.docs.map(d => d.id));
             tripSubmissions = snapshot.docs.map(d => ({
                 id: d.id,
                 ...d.data(),
@@ -2602,7 +2543,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }));
             renderTripSubmissions();
         }, (error) => {
-            console.error('[trip-debug] Trip submissions listener error:', error);
+            console.error('Trip submissions listener error:', error);
         });
     }
 });
