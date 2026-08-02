@@ -378,7 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                         // Setup real-time listeners
                         setupRealTimeListeners();
-                        setupAlumniTripListeners();
+                        setupTripListeners();
                         
                     } else {
                         alert("You don't have permission to access the admin portal.");
@@ -428,13 +428,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.applicationsListener();
                 window.applicationsListener = null;
             }
-            if (window.alumniTripsListener) {
-                window.alumniTripsListener();
-                window.alumniTripsListener = null;
+            if (window.tripsListener) {
+                window.tripsListener();
+                window.tripsListener = null;
             }
-            if (window.alumniTripSubmissionsListener) {
-                window.alumniTripSubmissionsListener();
-                window.alumniTripSubmissionsListener = null;
+            if (window.tripSubmissionsListener) {
+                window.tripSubmissionsListener();
+                window.tripSubmissionsListener = null;
             }
 
             cleanupDetailListener();
@@ -2169,7 +2169,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ---------------------------------------------------------------------
-    // Alumni Trips
+    // Trips
     // ---------------------------------------------------------------------
     const tripsTableBody = document.getElementById('tripsTableBody');
     const tripSubmissionsTableBody = document.getElementById('tripSubmissionsTableBody');
@@ -2198,7 +2198,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     if (saveTripBtn) saveTripBtn.addEventListener('click', saveTrip);
-    if (tripFilter) tripFilter.addEventListener('change', renderAlumniTripSubmissions);
+    if (tripFilter) tripFilter.addEventListener('change', renderTripSubmissions);
 
     function openTripModal(trip) {
         editingTripId = trip ? trip.id : null;
@@ -2235,12 +2235,12 @@ document.addEventListener('DOMContentLoaded', () => {
         saveTripBtn.disabled = true;
         try {
             if (editingTripId) {
-                await updateDoc(doc(window.firebase.db, 'alumniTrips', editingTripId), tripData);
+                await updateDoc(doc(window.firebase.db, 'trips', editingTripId), tripData);
                 showToast('Trip updated', 'success');
             } else {
                 tripData.createdAt = serverTimestamp();
                 tripData.createdBy = window.firebase.auth.currentUser ? window.firebase.auth.currentUser.uid : null;
-                await addDoc(collection(window.firebase.db, 'alumniTrips'), tripData);
+                await addDoc(collection(window.firebase.db, 'trips'), tripData);
                 showToast('Trip added', 'success');
             }
             closeTripModal();
@@ -2252,7 +2252,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function renderAlumniTrips() {
+    function renderTrips() {
         if (!tripsTableBody) return;
         tripsTableBody.innerHTML = '';
 
@@ -2321,7 +2321,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function renderAlumniTripSubmissions() {
+    function renderTripSubmissions() {
         if (!tripSubmissionsTableBody) return;
         tripSubmissionsTableBody.innerHTML = '';
 
@@ -2377,11 +2377,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         tripSubmissionsTableBody.querySelectorAll('.download-trip-pdf-btn').forEach(btn => {
-            btn.addEventListener('click', () => downloadAlumniTripPdf(btn));
+            btn.addEventListener('click', () => downloadTripPdf(btn));
         });
     }
 
-    async function downloadAlumniTripPdf(button) {
+    async function downloadTripPdf(button) {
         const submissionId = button.dataset.id;
         const originalHtml = button.innerHTML;
         button.disabled = true;
@@ -2389,11 +2389,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         try {
             const { httpsCallable, functions } = window.firebase;
-            const getUrl = httpsCallable(functions, 'getAlumniTripPdfUrl');
+            const getUrl = httpsCallable(functions, 'getTripPdfUrl');
             const result = await getUrl({ submissionId });
             window.open(result.data.url, '_blank');
         } catch (error) {
-            console.error('Error downloading alumni trip PDF:', error);
+            console.error('Error downloading trip PDF:', error);
             showToast('Failed to get PDF download link: ' + (error.message || 'Unknown error'), 'error');
         } finally {
             button.disabled = false;
@@ -2401,30 +2401,30 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function setupAlumniTripListeners() {
-        if (window.alumniTripsListener || window.alumniTripSubmissionsListener) return;
+    function setupTripListeners() {
+        if (window.tripsListener || window.tripSubmissionsListener) return;
 
         const { collection, query, orderBy, onSnapshot } = window.firebase;
 
-        const tripsQuery = query(collection(window.firebase.db, 'alumniTrips'), orderBy('createdAt', 'desc'));
-        window.alumniTripsListener = onSnapshot(tripsQuery, (snapshot) => {
+        const tripsQuery = query(collection(window.firebase.db, 'trips'), orderBy('createdAt', 'desc'));
+        window.tripsListener = onSnapshot(tripsQuery, (snapshot) => {
             trips = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
-            renderAlumniTrips();
-            renderAlumniTripSubmissions();
+            renderTrips();
+            renderTripSubmissions();
         }, (error) => {
-            console.error('Alumni trips listener error:', error);
+            console.error('Trips listener error:', error);
         });
 
-        const submissionsQuery = query(collection(window.firebase.db, 'alumniTripSubmissions'), orderBy('signedAt', 'desc'));
-        window.alumniTripSubmissionsListener = onSnapshot(submissionsQuery, (snapshot) => {
+        const submissionsQuery = query(collection(window.firebase.db, 'tripSubmissions'), orderBy('signedAt', 'desc'));
+        window.tripSubmissionsListener = onSnapshot(submissionsQuery, (snapshot) => {
             tripSubmissions = snapshot.docs.map(d => ({
                 id: d.id,
                 ...d.data(),
                 signedAt: safeConvertToDate(d.data().signedAt)
             }));
-            renderAlumniTripSubmissions();
+            renderTripSubmissions();
         }, (error) => {
-            console.error('Alumni trip submissions listener error:', error);
+            console.error('Trip submissions listener error:', error);
         });
     }
 });

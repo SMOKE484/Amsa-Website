@@ -1,4 +1,4 @@
-// Kept byte-for-byte identical to ALUMNI_TRIP_WAIVER_TEXT / ALUMNI_TRIP_POPIA_TEXT
+// Kept byte-for-byte identical to TRIP_WAIVER_TEXT / TRIP_POPIA_TEXT
 // in functions/index.js -- there is no shared module between functions/ and the
 // browser, so both copies are updated by hand when the wording changes.
 // NOTE: placeholder legal copy -- have it reviewed before relying on it for a real trip.
@@ -21,7 +21,7 @@ export const popiaText = "I consent to Alusani Maths and Science Academy collect
     "of Personal Information Act (POPIA).";
 
 export const elements = {
-  form: document.getElementById('alumniTripForm'),
+  form: document.getElementById('tripForm'),
   tripSelect: document.getElementById('tripSelect'),
   fullName: document.getElementById('fullName'),
   email: document.getElementById('email'),

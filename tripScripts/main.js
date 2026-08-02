@@ -1,7 +1,7 @@
 import { elements, waiverText, popiaText } from './constants.js';
 import { loadActiveTrips } from './trips.js';
 import { clearTripSignature } from './signature.js';
-import { handleAlumniTripSubmit } from './submit.js';
+import { handleTripSubmit } from './submit.js';
 import { getStoredSubmissions } from './submissionHistory.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (elements.form) {
-        elements.form.addEventListener('submit', handleAlumniTripSubmit);
+        elements.form.addEventListener('submit', handleTripSubmit);
     }
 
     if (elements.signUpAnotherTripBtn) {

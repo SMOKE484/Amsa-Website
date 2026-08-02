@@ -27,30 +27,29 @@ service cloud.firestore {
       allow write: if false; // only through admin SDK or Firebase console
     }
 
-    // Alumni trips: public read of active trips (for the sign-up form's trip
+    // Trips: public read of active trips (for the sign-up form's trip
     // picker), admin-only write. Trip metadata has no PII, so a public read
-    // is fine even though the site has no alumni login.
-    match /alumniTrips/{tripId} {
+    // is fine even though the site has no login for this form.
+    match /trips/{tripId} {
       allow read: if resource.data.active == true || (request.auth != null && isAdminUser());
       allow write: if request.auth != null && isAdminUser();
     }
-
-    // Alumni trip submissions contain contact + emergency + medical info
-    // collected from an unauthenticated public form. The only writer is the
-    // submitAlumniTripForm Cloud Function via the Admin SDK, which bypasses
-    // these rules entirely -- so this collection is deliberately
-    // read-only-for-admins / write-never-from-a-client.
-    match /alumniTripSubmissions/{submissionId} {
+    // Trip submissions contain contact + emergency + medical info collected
+    // from an unauthenticated public form. The only writer is the
+    // submitTripForm Cloud Function via the Admin SDK, which bypasses these
+    // rules entirely -- so this collection is deliberately read-only-for-
+    // admins / write-never-from-a-client.
+    match /tripSubmissions/{submissionId} {
       allow read: if request.auth != null && isAdminUser();
       allow write: if false;
     }
 
-    // Idempotency lock markers and error logs for the alumni trip flow are
+    // Idempotency lock markers and error logs for the trip flow are
     // server-only (Admin SDK), same as payment_verifications/payment_errors.
-    match /alumni_trip_submission_locks/{lockId} {
+    match /trip_submission_locks/{lockId} {
       allow read, write: if false;
     }
-    match /alumni_trip_errors/{errorId} {
+    match /trip_errors/{errorId} {
       allow read, write: if false;
     }
 

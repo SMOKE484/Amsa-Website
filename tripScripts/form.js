@@ -2,7 +2,7 @@ import { elements } from './constants.js';
 import { validateEmail, validatePhone } from '../applicationScripts/utilities.js';
 import { signaturePad } from './signature.js';
 
-export function collectAlumniTripFormData() {
+export function collectTripFormData() {
     return {
         tripId: elements.tripSelect.value,
         fullName: elements.fullName.value,
@@ -17,12 +17,12 @@ export function collectAlumniTripFormData() {
         waiverAgreed: elements.waiverAgreed.checked,
         popiaConsent: elements.popiaConsent.checked,
         // Untouched honeypot value passes through as-is; real bot detection
-        // happens server-side in submitAlumniTripForm.
+        // happens server-side in submitTripForm.
         honeypot: elements.honeypot.value
     };
 }
 
-export function validateAlumniTripForm(data) {
+export function validateTripForm(data) {
     const errors = [];
 
     if (!data.tripId) errors.push('Please select a trip');

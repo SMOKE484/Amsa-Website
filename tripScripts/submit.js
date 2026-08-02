@@ -1,12 +1,12 @@
 import { elements } from './constants.js';
 import { showToast, retryOperation } from '../applicationScripts/utilities.js';
-import { collectAlumniTripFormData, validateAlumniTripForm } from './form.js';
+import { collectTripFormData, validateTripForm } from './form.js';
 import { signaturePad, clearTripSignature } from './signature.js';
 import { recordSubmission } from './submissionHistory.js';
 
 let isSubmitting = false;
 
-export async function handleAlumniTripSubmit(event) {
+export async function handleTripSubmit(event) {
     event.preventDefault();
 
     if (isSubmitting) {
@@ -14,8 +14,8 @@ export async function handleAlumniTripSubmit(event) {
         return;
     }
 
-    const data = collectAlumniTripFormData();
-    const errors = validateAlumniTripForm(data);
+    const data = collectTripFormData();
+    const errors = validateTripForm(data);
     if (errors) {
         showToast(errors[0], 'error');
         return;
@@ -32,8 +32,8 @@ export async function handleAlumniTripSubmit(event) {
             signatureDataUrl: signaturePad.toDataURL('image/png')
         };
 
-        const submitAlumniTripForm = window.firebaseCallable(window.firebaseFunctions, 'submitAlumniTripForm');
-        const result = await retryOperation(() => submitAlumniTripForm(payload), 3, 1000);
+        const submitTripForm = window.firebaseCallable(window.firebaseFunctions, 'submitTripForm');
+        const result = await retryOperation(() => submitTripForm(payload), 3, 1000);
         const response = result.data;
 
         if (response.duplicate) {
@@ -52,7 +52,7 @@ export async function handleAlumniTripSubmit(event) {
         clearTripSignature();
 
     } catch (error) {
-        console.error('Error submitting alumni trip form:', error);
+        console.error('Error submitting trip form:', error);
         showToast(error.message || 'Error submitting your consent form. Please try again.', 'error');
         elements.submitBtn.disabled = false;
         elements.submitBtn.innerHTML = originalLabel;

@@ -228,14 +228,14 @@ exports.sendMonthlyPaymentReminders = onSchedule(
 );
 
 // ---------------------------------------------------------------------------
-// Alumni trip consent/indemnity form
+// Trip consent/indemnity form
 // ---------------------------------------------------------------------------
 // NOTE: this waiver/POPIA wording is placeholder copy, not legal advice.
 // Have it reviewed by the Academy's insurer/legal advisor before relying on
 // it for a real trip. It must stay byte-for-byte identical to the copy shown
-// to signees in alumniTripScripts/constants.js — there is no shared module
+// to signees in tripScripts/constants.js — there is no shared module
 // between functions/ and the browser, so both copies are updated by hand.
-const ALUMNI_TRIP_WAIVER_TEXT = "I, the undersigned, confirm that I am voluntarily participating in the " +
+const TRIP_WAIVER_TEXT = "I, the undersigned, confirm that I am voluntarily participating in the " +
     "above-named trip organised by Alusani Maths and Science Academy (\"the Academy\"). I acknowledge that " +
     "travel and group activities carry inherent risks, including but not limited to accident, injury, illness, " +
     "loss of or damage to personal property, and travel delays. I release and hold harmless the Academy, its " +
@@ -248,7 +248,7 @@ const ALUMNI_TRIP_WAIVER_TEXT = "I, the undersigned, confirm that I am voluntari
     "to make an exception and refund some or all of the payment, but is not required to do so. I understand " +
     "that this form, once signed, will be retained by the Academy as a record of my consent for this trip.";
 
-const ALUMNI_TRIP_POPIA_TEXT = "I consent to Alusani Maths and Science Academy collecting, storing, and " +
+const TRIP_POPIA_TEXT = "I consent to Alusani Maths and Science Academy collecting, storing, and " +
     "processing the personal information (including medical information) I have provided on this form, solely " +
     "for the purpose of organising and ensuring my safety during this trip, in accordance with the Protection " +
     "of Personal Information Act (POPIA).";
@@ -283,7 +283,7 @@ function wrapPdfText(text, font, size, maxWidth) {
     return lines;
 }
 
-class AlumniTripPdfCursor {
+class TripPdfCursor {
     constructor(pdfDoc, font, boldFont) {
         this.pdfDoc = pdfDoc;
         this.font = font;
@@ -323,14 +323,14 @@ class AlumniTripPdfCursor {
     }
 }
 
-async function generateAlumniTripPdf(data) {
+async function generateTripPdf(data) {
     const pdfDoc = await PDFDocument.create();
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
     const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-    const cursor = new AlumniTripPdfCursor(pdfDoc, font, boldFont);
+    const cursor = new TripPdfCursor(pdfDoc, font, boldFont);
 
     cursor.heading("Alusani Maths and Science Academy", 16);
-    cursor.heading("Alumni Trip Consent & Indemnity Form", 13);
+    cursor.heading("Trip Consent & Indemnity Form", 13);
     cursor.spacer(6);
     cursor.line(`Trip: ${data.tripName}`);
     cursor.line(`Trip Date: ${data.tripDate}`);
@@ -355,13 +355,13 @@ async function generateAlumniTripPdf(data) {
     cursor.spacer(10);
 
     cursor.heading("Indemnity & Consent Waiver");
-    cursor.wrapped(ALUMNI_TRIP_WAIVER_TEXT);
+    cursor.wrapped(TRIP_WAIVER_TEXT);
     cursor.spacer(6);
     cursor.line("[X] I confirm that I have read and agree to the waiver above.");
     cursor.spacer(10);
 
     cursor.heading("POPIA Consent");
-    cursor.wrapped(ALUMNI_TRIP_POPIA_TEXT);
+    cursor.wrapped(TRIP_POPIA_TEXT);
     cursor.spacer(6);
     cursor.line("[X] I consent to the processing of my personal information as described above.");
     cursor.spacer(16);
@@ -386,7 +386,7 @@ async function generateAlumniTripPdf(data) {
     return pdfDoc.save();
 }
 
-exports.submitAlumniTripForm = onCall(
+exports.submitTripForm = onCall(
     { cors: true, invoker: "public" },
     async (request) => {
         const data = request.data || {};
@@ -452,7 +452,7 @@ exports.submitAlumniTripForm = onCall(
 
         const db = admin.firestore();
 
-        const tripSnap = await db.collection("alumniTrips").doc(tripId).get();
+        const tripSnap = await db.collection("trips").doc(tripId).get();
         if (!tripSnap.exists || tripSnap.data().active !== true) {
             throw new HttpsError("failed-precondition", "This trip is not currently accepting sign-ups.");
         }
@@ -462,7 +462,7 @@ exports.submitAlumniTripForm = onCall(
         // PDF generation/upload/write so a double-click or client retry can't
         // produce two PDFs for the same person+trip.
         const dedupeKey = crypto.createHash("sha256").update(`${tripId}|${email.toLowerCase()}`).digest("hex");
-        const lockRef = db.collection("alumni_trip_submission_locks").doc(dedupeKey);
+        const lockRef = db.collection("trip_submission_locks").doc(dedupeKey);
         const lockSnap = await lockRef.get();
         if (lockSnap.exists) {
             return {
@@ -472,14 +472,14 @@ exports.submitAlumniTripForm = onCall(
             };
         }
 
-        const submissionRef = db.collection("alumniTripSubmissions").doc();
+        const submissionRef = db.collection("tripSubmissions").doc();
 
         try {
             const signedDateDisplay = new Date().toLocaleDateString("en-ZA", {
                 year: "numeric", month: "long", day: "numeric"
             });
 
-            const pdfBytes = await generateAlumniTripPdf({
+            const pdfBytes = await generateTripPdf({
                 tripName: trip.name,
                 tripDate: trip.tripDate,
                 fullName, email, phone,
@@ -490,11 +490,11 @@ exports.submitAlumniTripForm = onCall(
                 submissionId: submissionRef.id
             });
 
-            const pdfStoragePath = `alumni-trip-pdfs/${tripId}/${submissionRef.id}.pdf`;
+            const pdfStoragePath = `trip-pdfs/${tripId}/${submissionRef.id}.pdf`;
             await admin.storage().bucket().file(pdfStoragePath).save(Buffer.from(pdfBytes), {
                 contentType: "application/pdf",
                 metadata: {
-                    contentDisposition: `attachment; filename="alumni-trip-consent-${submissionRef.id}.pdf"`
+                    contentDisposition: `attachment; filename="trip-consent-${submissionRef.id}.pdf"`
                 }
             });
 
@@ -530,16 +530,16 @@ exports.submitAlumniTripForm = onCall(
         } catch (error) {
             if (error instanceof HttpsError) throw error;
 
-            console.error("Alumni trip submission failed:", error.message);
+            console.error("Trip submission failed:", error.message);
             try {
-                await db.collection("alumni_trip_errors").doc().set({
+                await db.collection("trip_errors").doc().set({
                     tripId,
                     email,
                     timestamp: admin.firestore.FieldValue.serverTimestamp(),
                     errorMessage: error.message
                 });
             } catch (logErr) {
-                console.error("Failed to log alumni trip submission error:", logErr.message);
+                console.error("Failed to log trip submission error:", logErr.message);
             }
 
             throw new HttpsError("internal", "Unable to process your submission right now. Please try again.");
@@ -547,14 +547,14 @@ exports.submitAlumniTripForm = onCall(
     }
 );
 
-exports.getAlumniTripPdfUrl = onCall(
+exports.getTripPdfUrl = onCall(
     { cors: true, invoker: "public" },
     async (request) => {
         if (!request.auth) {
             throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
         }
         if (!(await isAdminAuth(request.auth))) {
-            throw new HttpsError("permission-denied", "Only admins can download alumni trip PDFs.");
+            throw new HttpsError("permission-denied", "Only admins can download trip PDFs.");
         }
 
         const submissionId = (request.data && typeof request.data.submissionId === "string") ?
@@ -563,7 +563,7 @@ exports.getAlumniTripPdfUrl = onCall(
             throw new HttpsError("invalid-argument", "A submission ID is required.");
         }
 
-        const submissionSnap = await admin.firestore().collection("alumniTripSubmissions").doc(submissionId).get();
+        const submissionSnap = await admin.firestore().collection("tripSubmissions").doc(submissionId).get();
         if (!submissionSnap.exists) {
             throw new HttpsError("not-found", "Submission not found.");
         }
@@ -577,3 +577,4 @@ exports.getAlumniTripPdfUrl = onCall(
         return { url };
     }
 );
+

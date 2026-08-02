@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Alumni Trip Consent Form - Alusani Maths and Science Academy</title>
+<title>Trip Consent Form - Alusani Maths and Science Academy</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 <link rel="stylesheet" href="../styling/index.css">
 <link rel="stylesheet" href="../styling/application.css">
@@ -29,8 +29,8 @@
 
 <section class="hero">
     <div class="container">
-        <h2>Alumni Trip Consent &amp; Indemnity Form</h2>
-        <p>Please complete this form to confirm your participation in an upcoming AMSA alumni trip. A signed copy is kept on file for our records.</p>
+        <h2>Trip Consent &amp; Indemnity Form</h2>
+        <p>Please complete this form to confirm your participation in an upcoming AMSA trip. A signed copy is kept on file for our records.</p>
     </div>
 </section>
 
@@ -38,7 +38,7 @@
     <div class="container">
         <div class="form-container">
             <h2 class="form-title">Trip Sign-Up</h2>
-            <form id="alumniTripForm" novalidate>
+            <form id="tripForm" novalidate>
                 <div class="form-grid">
                     <div class="form-group form-full">
                         <label for="tripSelect">Trip *</label>
@@ -175,7 +175,7 @@ const functions = getFunctions(app);
 
 // This is a public, unauthenticated page -- no Auth/Storage/Messaging SDK is
 // loaded here, only what's needed to read active trips and call the
-// submitAlumniTripForm Cloud Function.
+// submitTripForm Cloud Function.
 window.firebaseDb = db;
 window.firebaseFunctions = functions;
 window.firebaseCallable = httpsCallable;
@@ -185,7 +185,7 @@ window.firebaseWhere = where;
 window.firebaseGetDocs = getDocs;
 </script>
 
-<script src="../alumniTripScripts/main.js" type="module"></script>
+<script src="../tripScripts/main.js" type="module"></script>
 <script src="../scripts/components.js"></script>
 </body>
 </html>

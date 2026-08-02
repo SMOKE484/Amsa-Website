@@ -821,12 +821,12 @@ p {
   border-color: white;
 }
 
-.alumni-trip-banner {
+.trip-banner {
   background-color: var(--navy);
   padding: 24px 0;
 }
 
-.alumni-trip-banner-content {
+.trip-banner-content {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -834,18 +834,18 @@ p {
   gap: 20px;
 }
 
-.alumni-trip-banner-text h3 {
+.trip-banner-text h3 {
   color: white;
   margin-bottom: 4px;
 }
 
-.alumni-trip-banner-text p {
+.trip-banner-text p {
   color: rgba(255, 255, 255, 0.85);
   margin: 0;
 }
 
 @media (max-width: 768px) {
-  .alumni-trip-banner-content {
+  .trip-banner-content {
     flex-direction: column;
     text-align: center;
   }

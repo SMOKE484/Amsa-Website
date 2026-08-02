@@ -37,11 +37,11 @@
     <div class="payment-status-text" style="display:none"></div>
     <div class="payment-status-badge" style="display:none"></div>
 
-    <!-- Minimal DOM stubs required by alumniTripScripts (constants.js reads these
-         at module-load time; collectAlumniTripFormData()/validateAlumniTripForm()
+    <!-- Minimal DOM stubs required by tripScripts (constants.js reads these
+         at module-load time; collectTripFormData()/validateTripForm()
          read .value/.checked off them) -->
     <div style="display:none">
-        <form id="alumniTripForm">
+        <form id="tripForm">
             <select id="tripSelect"><option value="trip1">Trip 1</option></select>
             <input id="fullName">
             <input id="email">
@@ -578,15 +578,15 @@
         );
 
         // ════════════════════════════════════════════════════════════════════════
-        // ALUMNI TRIP CONSENT FORM
+        // TRIP CONSENT FORM
         // ════════════════════════════════════════════════════════════════════════
 
         await test(
-            'Alumni Trip — validateAlumniTripForm rejects missing required fields',
+            'Trip — validateTripForm rejects missing required fields',
             'live execution',
             async () => {
-                const { validateAlumniTripForm } = await import('../alumniTripScripts/form.js');
-                const errors = validateAlumniTripForm({
+                const { validateTripForm } = await import('../tripScripts/form.js');
+                const errors = validateTripForm({
                     tripId: '', fullName: '', email: '', phone: '',
                     emergencyContactName: '', emergencyContactPhone: '', emergencyContactRelationship: '',
                     waiverAgreed: false, popiaConsent: false
@@ -596,11 +596,11 @@
         );
 
         await test(
-            'Alumni Trip — validateAlumniTripForm rejects invalid email/phone (reused validateEmail/validatePhone)',
+            'Trip — validateTripForm rejects invalid email/phone (reused validateEmail/validatePhone)',
             'live execution',
             async () => {
-                const { validateAlumniTripForm } = await import('../alumniTripScripts/form.js');
-                const errors = validateAlumniTripForm({
+                const { validateTripForm } = await import('../tripScripts/form.js');
+                const errors = validateTripForm({
                     tripId: 'trip1', fullName: 'Jane Doe', email: 'not-an-email', phone: '123',
                     emergencyContactName: 'John Doe', emergencyContactPhone: '123', emergencyContactRelationship: 'Parent',
                     waiverAgreed: true, popiaConsent: true
@@ -611,12 +611,12 @@
         );
 
         await test(
-            'Alumni Trip — validateAlumniTripForm rejects when signature is empty',
+            'Trip — validateTripForm rejects when signature is empty',
             'live execution',
             async () => {
-                const { validateAlumniTripForm } = await import('../alumniTripScripts/form.js');
+                const { validateTripForm } = await import('../tripScripts/form.js');
                 // The mocked SignaturePad.isEmpty() defaults to true (unsigned pad)
-                const errors = validateAlumniTripForm({
+                const errors = validateTripForm({
                     tripId: 'trip1', fullName: 'Jane Doe', email: 'jane@example.com', phone: '0821234567',
                     emergencyContactName: 'John Doe', emergencyContactPhone: '0821234567', emergencyContactRelationship: 'Parent',
                     waiverAgreed: true, popiaConsent: true
@@ -626,11 +626,11 @@
         );
 
         await test(
-            'Alumni Trip — validateAlumniTripForm rejects when waiver/POPIA checkboxes are unchecked',
+            'Trip — validateTripForm rejects when waiver/POPIA checkboxes are unchecked',
             'live execution',
             async () => {
-                const { validateAlumniTripForm } = await import('../alumniTripScripts/form.js');
-                const errors = validateAlumniTripForm({
+                const { validateTripForm } = await import('../tripScripts/form.js');
+                const errors = validateTripForm({
                     tripId: 'trip1', fullName: 'Jane Doe', email: 'jane@example.com', phone: '0821234567',
                     emergencyContactName: 'John Doe', emergencyContactPhone: '0821234567', emergencyContactRelationship: 'Parent',
                     waiverAgreed: false, popiaConsent: false
@@ -641,15 +641,15 @@
         );
 
         await test(
-            'Alumni Trip — validateAlumniTripForm passes for a fully valid, signed form',
+            'Trip — validateTripForm passes for a fully valid, signed form',
             'live execution',
             async () => {
-                const { validateAlumniTripForm } = await import('../alumniTripScripts/form.js');
-                const { signaturePad } = await import('../alumniTripScripts/signature.js');
+                const { validateTripForm } = await import('../tripScripts/form.js');
+                const { signaturePad } = await import('../tripScripts/signature.js');
                 const originalIsEmpty = signaturePad.isEmpty;
                 signaturePad.isEmpty = () => false; // simulate a signed pad
                 try {
-                    const errors = validateAlumniTripForm({
+                    const errors = validateTripForm({
                         tripId: 'trip1', fullName: 'Jane Doe', email: 'jane@example.com', phone: '0821234567',
                         emergencyContactName: 'John Doe', emergencyContactPhone: '0821234567', emergencyContactRelationship: 'Parent',
                         waiverAgreed: true, popiaConsent: true
@@ -662,10 +662,10 @@
         );
 
         await test(
-            'Alumni Trip — loadActiveTrips() populates the trip <select> from Firestore docs',
+            'Trip — loadActiveTrips() populates the trip <select> from Firestore docs',
             'live execution',
             async () => {
-                const { loadActiveTrips } = await import('../alumniTripScripts/trips.js');
+                const { loadActiveTrips } = await import('../tripScripts/trips.js');
 
                 const originalGetDocs = window.firebaseGetDocs;
                 window.firebaseGetDocs = async () => ({
@@ -687,36 +687,36 @@
         );
 
         await test(
-            'Alumni Trip — submit.js treats a duplicate-submission response as an info message, not an error',
+            'Trip — submit.js treats a duplicate-submission response as an info message, not an error',
             'source verification',
             async () => {
-                const src = await fetch('../alumniTripScripts/submit.js').then(r => r.text());
-                const fnStart = src.indexOf('export async function handleAlumniTripSubmit');
-                assert(fnStart !== -1, 'handleAlumniTripSubmit not found in submit.js');
+                const src = await fetch('../tripScripts/submit.js').then(r => r.text());
+                const fnStart = src.indexOf('export async function handleTripSubmit');
+                assert(fnStart !== -1, 'handleTripSubmit not found in submit.js');
                 assert(
                     src.includes("response.duplicate") && src.includes("'info'"),
-                    "handleAlumniTripSubmit does not branch on response.duplicate with an 'info' toast"
+                    "handleTripSubmit does not branch on response.duplicate with an 'info' toast"
                 );
             }
         );
 
         await test(
-            'Alumni Trip — honeypot field is included unmodified in the submitted payload',
+            'Trip — honeypot field is included unmodified in the submitted payload',
             'live execution',
             async () => {
                 document.getElementById('companyWebsite').value = '';
-                const { collectAlumniTripFormData } = await import('../alumniTripScripts/form.js');
-                const data = collectAlumniTripFormData();
+                const { collectTripFormData } = await import('../tripScripts/form.js');
+                const data = collectTripFormData();
                 assert('honeypot' in data, 'Payload does not include a honeypot field');
                 assert(data.honeypot === '', 'Honeypot field should default to empty for a real user');
             }
         );
 
         await test(
-            'Alumni Trip — client and Cloud Function waiver/POPIA copy stay in sync',
+            'Trip — client and Cloud Function waiver/POPIA copy stay in sync',
             'source verification',
             async () => {
-                const clientSrc = await fetch('../alumniTripScripts/constants.js').then(r => r.text());
+                const clientSrc = await fetch('../tripScripts/constants.js').then(r => r.text());
                 const fnSrc = await fetch('../functions/index.js').then(r => r.text());
                 // Spot-check distinctive phrases rather than a full byte-for-byte
                 // compare -- these two files are kept in sync by hand (no shared
@@ -736,14 +736,17 @@
         );
 
         await test(
-            'Alumni Trip — a recorded submission survives a simulated page reload (no false "form is blank" impression)',
+            'Trip — a recorded submission survives a simulated page reload (no false "form is blank" impression)',
             'live execution',
             async () => {
-                const STORAGE_KEY = 'amsaAlumniTripSubmissions';
+                const STORAGE_KEY = 'amsaTripSubmissions';
+                const LEGACY_STORAGE_KEY = 'amsaAlumniTripSubmissions';
                 const original = localStorage.getItem(STORAGE_KEY);
+                const originalLegacy = localStorage.getItem(LEGACY_STORAGE_KEY);
                 localStorage.removeItem(STORAGE_KEY);
+                localStorage.removeItem(LEGACY_STORAGE_KEY);
                 try {
-                    const { recordSubmission, getStoredSubmissions } = await import('../alumniTripScripts/submissionHistory.js');
+                    const { recordSubmission, getStoredSubmissions } = await import('../tripScripts/submissionHistory.js');
 
                     assert(getStoredSubmissions().length === 0, 'Expected no prior submissions before recording one');
 
@@ -766,6 +769,40 @@
                 } finally {
                     if (original === null) localStorage.removeItem(STORAGE_KEY);
                     else localStorage.setItem(STORAGE_KEY, original);
+                    if (originalLegacy === null) localStorage.removeItem(LEGACY_STORAGE_KEY);
+                    else localStorage.setItem(LEGACY_STORAGE_KEY, originalLegacy);
+                }
+            }
+        );
+
+        await test(
+            'Trip — a submission recorded under the old "Alumni Trip" localStorage key still shows as already-submitted after the rename',
+            'live execution',
+            async () => {
+                const STORAGE_KEY = 'amsaTripSubmissions';
+                const LEGACY_STORAGE_KEY = 'amsaAlumniTripSubmissions';
+                const original = localStorage.getItem(STORAGE_KEY);
+                const originalLegacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+                localStorage.removeItem(STORAGE_KEY);
+                localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify([
+                    { tripId: 'trip1', tripLabel: 'Cape Town Expo — 2026-09-01', submittedAt: '2026-07-01T00:00:00.000Z' }
+                ]));
+                try {
+                    const { getStoredSubmissions } = await import('../tripScripts/submissionHistory.js');
+
+                    const submissions = getStoredSubmissions();
+                    assert(submissions.length === 1, 'Expected the legacy-key submission to be picked up');
+                    assert(submissions[0].tripId === 'trip1', 'Legacy submission has the wrong tripId');
+
+                    // The migration should also have copied it under the new key, so a
+                    // second, independent read (a later page load) finds it directly.
+                    const migrated = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+                    assert(migrated.length === 1, 'Legacy submission was not migrated onto the new storage key');
+                } finally {
+                    if (original === null) localStorage.removeItem(STORAGE_KEY);
+                    else localStorage.setItem(STORAGE_KEY, original);
+                    if (originalLegacy === null) localStorage.removeItem(LEGACY_STORAGE_KEY);
+                    else localStorage.setItem(LEGACY_STORAGE_KEY, originalLegacy);
                 }
             }
         );

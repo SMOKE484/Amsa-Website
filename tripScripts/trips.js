@@ -4,7 +4,7 @@ import { showToast, withErrorHandling } from '../applicationScripts/utilities.js
 export async function loadActiveTrips() {
     await withErrorHandling(async () => {
         const tripsQuery = window.firebaseQuery(
-            window.firebaseCollection(window.firebaseDb, 'alumniTrips'),
+            window.firebaseCollection(window.firebaseDb, 'trips'),
             window.firebaseWhere('active', '==', true)
         );
         const snapshot = await window.firebaseGetDocs(tripsQuery);
