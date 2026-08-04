@@ -304,6 +304,17 @@ body {
     font-size: 0.85rem; /* Reduced from 0.875rem */
 }
 
+/* Icon-only action buttons (table row actions) -- same color variants as
+   .btn-outline/.btn-danger, just square and without a text label, so dense
+   tables (e.g. Trip Sign-Ups) don't force horizontal scrolling. */
+.btn-icon {
+    padding: 0;
+    width: 2.25rem;
+    height: 2.25rem;
+    gap: 0;
+    font-size: 1rem;
+}
+
 .btn-lg {
     padding: 0.9rem 1.75rem; /* Reduced from 1rem 2rem */
     font-size: 1.05rem; /* Reduced from 1.1rem */

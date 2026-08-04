@@ -2222,6 +2222,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const tripsTableBody = document.getElementById('tripsTableBody');
     const tripSubmissionsTableBody = document.getElementById('tripSubmissionsTableBody');
     const tripFilter = document.getElementById('tripFilter');
+    const tripSubmissionSearchInput = document.getElementById('tripSubmissionSearchInput');
     const addTripBtn = document.getElementById('addTripBtn');
     const tripModal = document.getElementById('tripModal');
     const tripModalTitle = document.getElementById('tripModalTitle');
@@ -2262,6 +2263,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (saveTripBtn) saveTripBtn.addEventListener('click', saveTrip);
     if (tripFilter) tripFilter.addEventListener('change', renderTripSubmissions);
+    if (tripSubmissionSearchInput) tripSubmissionSearchInput.addEventListener('input', renderTripSubmissions);
 
     function openTripModal(trip) {
         editingTripId = trip ? trip.id : null;
@@ -2438,14 +2440,32 @@ document.addEventListener('DOMContentLoaded', () => {
         tripSubmissionsTableBody.innerHTML = '';
 
         const filterValue = tripFilter ? tripFilter.value : 'all';
-        const filtered = filterValue === 'all' ? tripSubmissions : tripSubmissions.filter(s => s.tripId === filterValue);
+        const searchValue = tripSubmissionSearchInput ? tripSubmissionSearchInput.value.toLowerCase().trim() : '';
+
+        const filtered = tripSubmissions.filter(sub => {
+            const tripMatch = filterValue === 'all' || sub.tripId === filterValue;
+            if (!tripMatch) return false;
+            if (!searchValue) return true;
+
+            const isStudentSub = sub.audienceType === 'student';
+            const haystack = [
+                sub.participantName || sub.fullName,
+                sub.tripName,
+                isStudentSub ? sub.parentGuardianName : null,
+                isStudentSub ? sub.parentGuardianEmail : sub.email,
+                isStudentSub ? sub.parentGuardianHomePhone : sub.phone,
+                sub.emergencyContactName,
+                sub.emergencyContactPhone
+            ].filter(Boolean).join(' ').toLowerCase();
+            return haystack.includes(searchValue);
+        });
 
         if (filtered.length === 0) {
             const tr = document.createElement('tr');
             const td = document.createElement('td');
             td.colSpan = 7;
             td.className = 'no-data';
-            td.textContent = 'No trip sign-ups yet.';
+            td.textContent = tripSubmissions.length === 0 ? 'No trip sign-ups yet.' : 'No sign-ups match your search.';
             tr.appendChild(td);
             tripSubmissionsTableBody.appendChild(tr);
             return;
@@ -2483,23 +2503,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const tdActions = document.createElement('td');
             const downloadBtn = document.createElement('button');
-            downloadBtn.className = 'btn btn-outline download-trip-pdf-btn';
+            downloadBtn.className = 'btn btn-outline btn-icon download-trip-pdf-btn';
+            downloadBtn.title = 'Download PDF';
+            downloadBtn.setAttribute('aria-label', 'Download PDF');
             downloadBtn.dataset.id = sub.id;
             const downloadIcon = document.createElement('i');
             downloadIcon.className = 'fas fa-download';
             downloadBtn.appendChild(downloadIcon);
-            downloadBtn.appendChild(document.createTextNode(' Download PDF'));
             tdActions.appendChild(downloadBtn);
 
             const deleteBtn = document.createElement('button');
-            deleteBtn.className = 'btn btn-danger delete-trip-submission-btn';
+            deleteBtn.className = 'btn btn-danger btn-icon delete-trip-submission-btn';
+            deleteBtn.title = 'Delete submission';
+            deleteBtn.setAttribute('aria-label', 'Delete submission');
             deleteBtn.style.marginLeft = '8px';
             deleteBtn.dataset.id = sub.id;
             deleteBtn.dataset.name = sub.participantName || sub.fullName || 'this submission';
             const deleteIcon = document.createElement('i');
             deleteIcon.className = 'fas fa-trash';
             deleteBtn.appendChild(deleteIcon);
-            deleteBtn.appendChild(document.createTextNode(' Delete'));
             tdActions.appendChild(deleteBtn);
 
             row.appendChild(tdActions);
@@ -2519,7 +2541,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const submissionId = button.dataset.id;
         const originalHtml = button.innerHTML;
         button.disabled = true;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing...';
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
         try {
             const { httpsCallable, functions } = window.firebase;
@@ -2544,7 +2566,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const originalHtml = button.innerHTML;
         button.disabled = true;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
 
         try {
             const { httpsCallable, functions } = window.firebase;
