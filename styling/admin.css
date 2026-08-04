@@ -315,6 +315,16 @@ body {
     font-size: 1rem;
 }
 
+/* Wraps multiple .btn-icon buttons in one table cell. `gap` (not margin on
+   the buttons themselves) keeps consistent spacing whether the buttons sit
+   side-by-side or wrap onto separate lines in a narrow column. */
+.row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
 .btn-lg {
     padding: 0.9rem 1.75rem; /* Reduced from 1rem 2rem */
     font-size: 1.05rem; /* Reduced from 1.1rem */

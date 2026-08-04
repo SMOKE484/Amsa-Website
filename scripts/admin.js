@@ -2502,6 +2502,9 @@ document.addEventListener('DOMContentLoaded', () => {
             row.appendChild(tdSigned);
 
             const tdActions = document.createElement('td');
+            const actionGroup = document.createElement('div');
+            actionGroup.className = 'row-actions';
+
             const downloadBtn = document.createElement('button');
             downloadBtn.className = 'btn btn-outline btn-icon download-trip-pdf-btn';
             downloadBtn.title = 'Download PDF';
@@ -2510,20 +2513,20 @@ document.addEventListener('DOMContentLoaded', () => {
             const downloadIcon = document.createElement('i');
             downloadIcon.className = 'fas fa-download';
             downloadBtn.appendChild(downloadIcon);
-            tdActions.appendChild(downloadBtn);
+            actionGroup.appendChild(downloadBtn);
 
             const deleteBtn = document.createElement('button');
             deleteBtn.className = 'btn btn-danger btn-icon delete-trip-submission-btn';
             deleteBtn.title = 'Delete submission';
             deleteBtn.setAttribute('aria-label', 'Delete submission');
-            deleteBtn.style.marginLeft = '8px';
             deleteBtn.dataset.id = sub.id;
             deleteBtn.dataset.name = sub.participantName || sub.fullName || 'this submission';
             const deleteIcon = document.createElement('i');
             deleteIcon.className = 'fas fa-trash';
             deleteBtn.appendChild(deleteIcon);
-            tdActions.appendChild(deleteBtn);
+            actionGroup.appendChild(deleteBtn);
 
+            tdActions.appendChild(actionGroup);
             row.appendChild(tdActions);
 
             tripSubmissionsTableBody.appendChild(row);
