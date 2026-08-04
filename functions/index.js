@@ -756,3 +756,51 @@ exports.getTripPdfUrl = onCall(
     }
 );
 
+exports.deleteTripSubmission = onCall(
+    { cors: true, invoker: "public" },
+    async (request) => {
+        if (!request.auth) {
+            throw new HttpsError("unauthenticated", "The function must be called while authenticated.");
+        }
+        if (!(await isAdminAuth(request.auth))) {
+            throw new HttpsError("permission-denied", "Only admins can delete trip submissions.");
+        }
+
+        const submissionId = (request.data && typeof request.data.submissionId === "string") ?
+            request.data.submissionId.trim() : "";
+        if (!submissionId) {
+            throw new HttpsError("invalid-argument", "A submission ID is required.");
+        }
+
+        const db = admin.firestore();
+        const submissionRef = db.collection("tripSubmissions").doc(submissionId);
+        const submissionSnap = await submissionRef.get();
+        if (!submissionSnap.exists) {
+            throw new HttpsError("not-found", "Submission not found.");
+        }
+        const { pdfStoragePath, dedupeKey } = submissionSnap.data();
+
+        if (pdfStoragePath) {
+            try {
+                await admin.storage().bucket().file(pdfStoragePath).delete();
+            } catch (error) {
+                // A PDF that's already gone (or never finished uploading) shouldn't
+                // block deleting the submission record itself -- log and continue.
+                console.error("Failed to delete trip submission PDF:", error.message);
+            }
+        }
+
+        // Deleting the lock is what actually lets the same person submit again --
+        // without this, submitTripForm's dedupe check keeps silently returning
+        // duplicate:true forever, permanently blocking a resubmission (the exact
+        // "orphaned lock" scenario documented in BUGS_TO_FIX.md).
+        if (dedupeKey) {
+            await db.collection("trip_submission_locks").doc(dedupeKey).delete();
+        }
+
+        await submissionRef.delete();
+
+        return { success: true };
+    }
+);
+

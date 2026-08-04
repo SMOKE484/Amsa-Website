@@ -861,6 +861,29 @@
         );
 
         await test(
+            'Trip — deleteTripSubmission is admin-gated and clears the dedupe lock so the learner can resubmit',
+            'source verification',
+            async () => {
+                const fnSrc = await fetch('../functions/index.js').then(r => r.text());
+                const fnStart = fnSrc.indexOf('exports.deleteTripSubmission');
+                assert(fnStart !== -1, 'deleteTripSubmission not found in functions/index.js');
+                const fnBody = fnSrc.slice(fnStart, fnStart + 2000);
+
+                assert(fnBody.includes('isAdminAuth'), 'deleteTripSubmission does not check isAdminAuth -- any signed-in user could delete submissions');
+                // The dedupeKey-based lock deletion is the fix for the "orphaned
+                // lock" scenario in BUGS_TO_FIX.md -- without it, deleting a
+                // submission would silently leave the learner permanently blocked
+                // from ever submitting again for that trip.
+                assert(fnBody.includes('trip_submission_locks') && fnBody.includes('dedupeKey'),
+                    'deleteTripSubmission does not clear the matching trip_submission_locks entry');
+
+                const adminSrc = await fetch('../scripts/admin.js').then(r => r.text());
+                assert(adminSrc.includes('deleteTripSubmission'), 'admin.js does not call the deleteTripSubmission callable');
+                assert(adminSrc.includes('delete-trip-submission-btn'), 'admin.js has no delete button wired up in the Trip Sign-Ups table');
+            }
+        );
+
+        await test(
             'Trip — a recorded submission survives a simulated page reload (no false "form is blank" impression)',
             'live execution',
             async () => {

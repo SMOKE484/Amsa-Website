@@ -2485,11 +2485,23 @@ document.addEventListener('DOMContentLoaded', () => {
             const downloadBtn = document.createElement('button');
             downloadBtn.className = 'btn btn-outline download-trip-pdf-btn';
             downloadBtn.dataset.id = sub.id;
-            const icon = document.createElement('i');
-            icon.className = 'fas fa-download';
-            downloadBtn.appendChild(icon);
+            const downloadIcon = document.createElement('i');
+            downloadIcon.className = 'fas fa-download';
+            downloadBtn.appendChild(downloadIcon);
             downloadBtn.appendChild(document.createTextNode(' Download PDF'));
             tdActions.appendChild(downloadBtn);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn btn-danger delete-trip-submission-btn';
+            deleteBtn.style.marginLeft = '8px';
+            deleteBtn.dataset.id = sub.id;
+            deleteBtn.dataset.name = sub.participantName || sub.fullName || 'this submission';
+            const deleteIcon = document.createElement('i');
+            deleteIcon.className = 'fas fa-trash';
+            deleteBtn.appendChild(deleteIcon);
+            deleteBtn.appendChild(document.createTextNode(' Delete'));
+            tdActions.appendChild(deleteBtn);
+
             row.appendChild(tdActions);
 
             tripSubmissionsTableBody.appendChild(row);
@@ -2497,6 +2509,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         tripSubmissionsTableBody.querySelectorAll('.download-trip-pdf-btn').forEach(btn => {
             btn.addEventListener('click', () => downloadTripPdf(btn));
+        });
+        tripSubmissionsTableBody.querySelectorAll('.delete-trip-submission-btn').forEach(btn => {
+            btn.addEventListener('click', () => deleteTripSubmissionRow(btn));
         });
     }
 
@@ -2515,6 +2530,30 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error('Error downloading trip PDF:', error);
             showToast('Failed to get PDF download link: ' + (error.message || 'Unknown error'), 'error');
         } finally {
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        }
+    }
+
+    async function deleteTripSubmissionRow(button) {
+        const submissionId = button.dataset.id;
+        const name = button.dataset.name;
+        if (!confirm(`Delete ${name}'s signed consent form? This also clears their record so they can submit again, and removes the PDF. This cannot be undone.`)) {
+            return;
+        }
+
+        const originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+
+        try {
+            const { httpsCallable, functions } = window.firebase;
+            const deleteSubmission = httpsCallable(functions, 'deleteTripSubmission');
+            await deleteSubmission({ submissionId });
+            showToast('Submission deleted', 'success');
+        } catch (error) {
+            console.error('Error deleting trip submission:', error);
+            showToast('Failed to delete submission: ' + (error.message || 'Unknown error'), 'error');
             button.disabled = false;
             button.innerHTML = originalHtml;
         }
